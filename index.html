@@ -1,1 +1,137 @@
-index.html
+
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ניהול חשבוניות</title>
+<style>
+*{box-sizing:border-box}
+body{font-family:Arial,sans-serif;background:#f3f5f8;margin:0;color:#202938}
+header{background:#172c42;color:white;padding:25px;text-align:center}
+main{max-width:900px;margin:auto;padding:16px}
+.card{background:white;border-radius:14px;padding:20px;margin:15px 0;box-shadow:0 2px 10px #0001}
+h1{margin:0;font-size:26px}
+h2{font-size:20px}
+input,select,button{width:100%;padding:13px;margin:7px 0;border:1px solid #ddd;border-radius:9px;font-size:16px}
+button{background:#1769aa;color:white;border:0;font-weight:bold;cursor:pointer}
+.summary{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.stat{background:#e9f2fc;border-radius:12px;padding:16px;text-align:center}
+.stat strong{display:block;font-size:23px;margin-top:8px}
+.item{border-bottom:1px solid #ddd;padding:14px 0}
+.item:last-child{border:0}
+small{color:#64748b}
+.delete{background:#b42318}
+.paid{color:green}
+.unpaid{color:#c45c00}
+</style>
+</head>
+<body>
+<header>
+<h1>מערכת ניהול חשבוניות</h1>
+<p>ניהול ספקים, תשלומים והוצאות</p>
+</header>
+<main>
+<div class="summary">
+<div class="stat">סך חשבוניות<strong id="total">₪0</strong></div>
+<div class="stat">יתרה לתשלום<strong id="due">₪0</strong></div>
+</div>
+<div class="card">
+<h2>הוספת חשבונית</h2>
+<form id="form">
+<input id="supplier" placeholder="שם ספק" required>
+<input id="number" placeholder="מספר חשבונית">
+<input id="amount" type="number" min="0.01" step="0.01" placeholder="סכום בשקלים" required>
+<input id="date" type="date" required>
+<select id="status">
+<option value="לא שולם">לא שולם</option>
+<option value="שולם">שולם</option>
+</select>
+<button type="submit">שמור חשבונית</button>
+</form>
+</div>
+<div class="card">
+<h2>רשימת חשבוניות</h2>
+<input id="search" placeholder="חיפוש לפי ספק או מספר חשבונית">
+<div id="list"></div>
+</div>
+</main>
+<script>
+const KEY="my_invoices_v1";
+let invoices=[];
+try{
+invoices=JSON.parse(localStorage.getItem(KEY))||[];
+}catch(e){invoices=[]}
+const el=id=>document.getElementById(id);
+const money=n=>new Intl.NumberFormat("he-IL",{
+style:"currency",currency:"ILS"
+}).format(n);
+function save(){
+localStorage.setItem(KEY,JSON.stringify(invoices));
+render();
+}
+function render(){
+const total=invoices.reduce((s,x)=>s+Number(x.amount),0);
+const due=invoices.filter(x=>x.status!=="שולם")
+.reduce((s,x)=>s+Number(x.amount),0);
+el("total").textContent=money(total);
+el("due").textContent=money(due);
+const q=el("search").value.toLowerCase();
+const list=el("list");
+list.replaceChildren();
+const filtered=invoices.filter(x=>
+x.supplier.toLowerCase().includes(q)||
+x.number.toLowerCase().includes(q));
+if(!filtered.length){
+list.textContent="אין חשבוניות להצגה";
+return;
+}
+filtered.forEach(x=>{
+const div=document.createElement("div");
+div.className="item";
+const title=document.createElement("strong");
+title.textContent=x.supplier+" — "+money(x.amount);
+const info=document.createElement("p");
+info.textContent="חשבונית: "+x.number+" | "+x.date;
+const status=document.createElement("p");
+status.textContent=x.status;
+status.className=x.status==="שולם"?"paid":"unpaid";
+const toggle=document.createElement("button");
+toggle.textContent=x.status==="שולם"?"סמן כלא שולם":"סמן כשולם";
+toggle.onclick=()=>{
+x.status=x.status==="שולם"?"לא שולם":"שולם";
+save();
+};
+const del=document.createElement("button");
+del.className="delete";
+del.textContent="מחק";
+del.onclick=()=>{
+if(confirm("למחוק את החשבונית?")){
+invoices=invoices.filter(a=>a.id!==x.id);
+save();
+}
+};
+div.append(title,info,status,toggle,del);
+list.append(div);
+});
+}
+el("form").onsubmit=e=>{
+e.preventDefault();
+invoices.unshift({
+id:Date.now()+"-"+Math.random(),
+supplier:el("supplier").value.trim(),
+number:el("number").value.trim(),
+amount:Number(el("amount").value),
+date:el("date").value,
+status:el("status").value
+});
+save();
+el("form").reset();
+el("date").value=new Date().toLocaleDateString("en-CA");
+};
+el("search").oninput=render;
+el("date").value=new Date().toLocaleDateString("en-CA");
+render();
+</script>
+</body>
+</html>
