@@ -5,6 +5,7 @@
 <title>מערכת ניהול חשבוניות</title>
 <style>
 :root{font-family:Arial,sans-serif;color:#172c43;background:#f3f6fa}*{box-sizing:border-box}body{margin:0}header{background:#172c43;color:white;padding:22px 5%;display:flex;justify-content:space-between;align-items:center}h1{font-size:24px;margin:0}header small{display:block;margin-top:7px}main{max-width:1100px;margin:35px auto;padding:0 16px}.panel{background:white;border-radius:16px;padding:25px;margin-bottom:18px;box-shadow:0 3px 15px #152c4310}.login{max-width:520px;margin:50px auto}label{display:block;margin:12px 0 5px;font-weight:bold;font-size:14px}input,select,button{font:inherit;padding:12px;border-radius:9px;border:1px solid #cbd5e1}input,select{width:100%;background:white}button{background:#1968ac;color:white;border:0;cursor:pointer;font-weight:bold}button:hover{filter:brightness(.95)}button:disabled{opacity:.6;cursor:wait}.result-title{margin:0 0 14px}.result-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:14px 0}.result-cell{background:#f3f7fc;padding:13px;border-radius:10px;overflow-wrap:anywhere}.result-cell small{display:block;color:#5e7085;margin-bottom:6px}.result-cell b{font-size:16px}.result-wrap{overflow-x:auto}.result-warning{padding:12px;border-radius:9px;background:#fff4dd;color:#76521c;margin:12px 0}.result-note{font-size:13px;color:#53667b}.auto-panel{background:#eef7ff;border:1px solid #d3e6fa;border-radius:12px;padding:16px;margin-bottom:20px}.auto-panel h3{margin-top:0}.auto-panel input{max-width:600px}.review-input{padding:7px;min-width:100px}.review-actions{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0}.review-actions button{flex:0 0 auto}.review-note{color:#805500;background:#fff6df;padding:12px;border-radius:8px}@media(max-width:650px){.result-grid{grid-template-columns:1fr 1fr}}.secondary{background:#e7eef5;color:#18364d}.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.row>*{flex:1}.row button{flex:0 0 auto}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.stat{background:#eaf3fd;padding:20px;border-radius:13px;text-align:center}.stat b{font-size:24px;display:block;margin-top:8px}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}.message{padding:12px;border-radius:9px;margin:14px 0;background:#fff0f0;color:#a32b2b;white-space:pre-wrap}.ok{background:#e8f8ed;color:#156a36}.muted{color:#617286;font-size:13px}table{width:100%;border-collapse:collapse}th,td{padding:12px;text-align:right;border-bottom:1px solid #e4eaf1}th{background:#f5f8fb}.scroll{overflow-x:auto}#app{display:none}.file-button{padding:8px 12px;font-size:13px;white-space:nowrap}.empty-file{color:#8a97a7}@media(max-width:650px){.grid,.stats{grid-template-columns:1fr}header{display:block}h1{font-size:21px}}
+.match-hint{font-size:12px;color:#53667b;margin:6px 0}.match-ok{color:#126438;font-weight:bold}.match-pending{color:#8a5b12;font-weight:bold}.match-select{max-width:320px;min-width:220px}.match-actions{display:flex;flex-wrap:wrap;align-items:center;gap:5px}.match-actions button{padding:8px 10px;font-size:12px}.cost-highlight{background:#f4fbff}
 </style>
 </head>
 <body>
@@ -14,7 +15,7 @@
 <section id="app">
 <div class="row" style="margin-bottom:18px"><h2 id="businessTitle">חשבוניות</h2><button class="secondary" id="logout">התנתק</button></div>
 <div class="stats"><div class="stat">סך חשבוניות<b id="total">0</b></div><div class="stat">סך סכומים<b id="sum">₪0</b></div><div class="stat">יתרה לתשלום<b id="unpaid">₪0</b></div></div>
-<section class="panel" id="costPanel"><h2>עלות סחורה ומסמכים</h2><div class="stats"><div class="stat">עלות מתעודות משלוח<b id="deliveryCost">₪0</b></div><div class="stat">תעודות משלוח שנותחו<b id="deliveryCount">0</b></div><div class="stat">מוצרים שנקלטו<b id="itemCount">0</b></div></div><p class="muted" id="costNote">טוען נתוני סחורה...</p><div class="scroll"><table><thead><tr><th>מסמך</th><th>ספק שזוהה</th><th>תאריך</th><th>מוצרים</th><th>עלות שורות</th><th>מצב</th><th>התאמה לחשבונית</th></tr></thead><tbody id="costRows"></tbody></table></div><p class="review-note">עלות הסחורה מתעודות משלוח מוצגת בנפרד מחובות לספקים. אין לחבר את שני הסכומים: אותה סחורה עלולה להופיע בהמשך גם בחשבונית. ניתן לקשר תעודת משלוח לחשבונית לאחר בדיקה. הקישור אינו משנה חיובים או סכומי עלות.</p></section>
+<section class="panel" id="costPanel"><h2>עלות סחורה ומסמכים</h2><div class="stats"><div class="stat">עלות מתעודות משלוח<b id="deliveryCost">₪0</b></div><div class="stat">תעודות משלוח שנותחו<b id="deliveryCount">0</b></div><div class="stat">מוצרים שנקלטו<b id="itemCount">0</b></div></div><p id="matchSummary" class="muted" aria-live="polite"></p><p class="muted" id="costNote">טוען נתוני סחורה...</p><div class="scroll"><table><thead><tr><th>מסמך</th><th>ספק שזוהה</th><th>תאריך</th><th>מוצרים</th><th>עלות שורות</th><th>מצב</th><th>התאמה לחשבונית</th></tr></thead><tbody id="costRows"></tbody></table></div><p class="review-note">עלות הסחורה מתעודות משלוח מוצגת בנפרד מחובות לספקים. אין לחבר את שני הסכומים: אותה סחורה עלולה להופיע בהמשך גם בחשבונית. ניתן לקשר תעודת משלוח לחשבונית לאחר בדיקה. הקישור אינו משנה חיובים או סכומי עלות.</p></section>
 <div id="appMsg" role="status" aria-live="polite"></div>
 <section class="panel"><h2>קליטת חשבונית</h2><div class="auto-panel"><h3>העלאה חכמה — פשוט מעלים תמונה או PDF</h3><p>המערכת תשמור את הקובץ ותנסה לזהות אוטומטית ספק, תאריך, פריטים, כמויות ומחירים. נתונים שלא זוהו יישארו לבדיקה.</p><label for="quickFile">בחר תמונה או PDF</label><input id="quickFile" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp"><p><button type="button" id="quickBtn">העלה ונתח אוטומטית</button></p><p class="muted">עד 10MB. יש לבדוק את הנתונים לפני אישור חשבונאי. הקליטה הידנית זמינה בהמשך.</p></div><h3>קליטה ידנית (לפי הצורך)</h3><form id="invoiceForm"><div class="grid">
 <div><label for="supplier">שם ספק</label><input id="supplier" required></div>
@@ -102,6 +103,19 @@ async function loadCostData(){
   renderCosts();
  }catch(e){$('costNote').textContent='לא ניתן לטעון את נתוני המוצרים: '+e.message+' — ודא שהטבלאות invoice_analysis ו־invoice_items קיימות ושהמשתמש מורשה לקרוא אותן.'}
 }
+function normalizeSupplier(v){return String(v||'').toLowerCase().replace(/["׳״'`.,()\-]/g,' ').replace(/\b(בעמ|בע מ|ltd|limited)\b/g,' ').replace(/\s+/g,' ').trim()}
+function matchScore(delivery,financial){
+ const d=delivery.extracted||{},f=financial.extracted||{};
+ const di=invoices.find(x=>x.id===delivery.invoice_id)||{},fi=invoices.find(x=>x.id===financial.invoice_id)||{};
+ const ds=normalizeSupplier(d.supplier_name||di.supplier_name),fs=normalizeSupplier(f.supplier_name||fi.supplier_name);
+ let score=0,why=[];
+ if(ds&&fs){if(ds===fs){score+=70;why.push('אותו ספק')}else if(ds.length>=5&&fs.length>=5&&(ds.includes(fs)||fs.includes(ds))){score+=35;why.push('שם ספק דומה')}}
+ const dd=d.document_date||di.invoice_date,fd=f.document_date||fi.invoice_date;
+ if(dd&&fd){const days=Math.abs((Date.parse(dd)-Date.parse(fd))/86400000);if(Number.isFinite(days)&&days<=45){score+=days<=7?20:days<=30?10:4;why.push('תאריכים קרובים')}}
+ const dn=String(d.document_number||di.invoice_number||'').trim(),fn=String(f.document_number||fi.invoice_number||'').trim();
+ if(dn&&fn&&dn===fn){score+=20;why.push('מספר מסמך זהה')}
+ return {score,why:why.join(' · ')};
+}
 function renderCosts(){
  const invoiceMap=new Map(invoices.map(x=>[x.id,x]));
  const byInvoice=new Map();
@@ -123,26 +137,34 @@ function renderCosts(){
   for(const value of [d.document_number||inv.invoice_number||'ללא מספר',d.supplier_name||inv.supplier_name||'לא זוהה',d.document_date||inv.invoice_date||'לא זוהה',String(items.length),money(subtotal),known===items.length&&items.length?'סכום שורות זוהה':'נדרשת בדיקה']){
    const td=document.createElement('td');td.textContent=value;tr.append(td);
   }
-  const tdMatch=document.createElement('td');
-  const existing=documentMatches.find(m=>m.delivery_invoice_id===a.invoice_id);
-  if(!matchingEnabled){tdMatch.textContent='יש להריץ את קובץ SQL להתאמות';tdMatch.className='muted'}
-  else{
-   const selector=document.createElement('select');selector.className='review-input';selector.style.minWidth='210px';
-   const empty=document.createElement('option');empty.value='';empty.textContent='לא מותאם לחשבונית';selector.append(empty);
-   const financial=analyses.filter(x=>['invoice','tax_invoice','tax_invoice_receipt'].includes(x.document_type)&&x.invoice_id!==a.invoice_id);
-   for(const f of financial){const option=document.createElement('option');option.value=f.invoice_id;
-    const fin=invoices.find(x=>x.id===f.invoice_id)||{};const ex=f.extracted||{};
-    option.textContent=(ex.supplier_name||fin.supplier_name||'ספק לא ידוע')+' — '+(ex.document_number||fin.invoice_number||'ללא מספר')+' ('+(ex.document_date||fin.invoice_date||'ללא תאריך')+')';selector.append(option)}
-   if(existing&&!financial.some(f=>f.invoice_id===existing.financial_invoice_id)){
-    const unavailable=document.createElement('option');unavailable.value=existing.financial_invoice_id;unavailable.textContent='התאמה קיימת — חשבונית לא זמינה ברשימה';selector.append(unavailable)}
-   selector.value=existing?.financial_invoice_id||'';
-   const saveMatch=document.createElement('button');saveMatch.type='button';saveMatch.className='file-button';saveMatch.textContent='שמור התאמה';saveMatch.style.margin='5px';
-   saveMatch.onclick=async()=>{saveMatch.disabled=true;try{
-    await api('/rest/v1/rpc/set_invoice_document_match',{method:'POST',body:{p_delivery_id:a.invoice_id,p_financial_id:selector.value||null}});
-    await loadCostData();msg('appMsg','התאמת המסמכים נשמרה. סכומי החיוב לא השתנו.',true);
-   }catch(e){msg('appMsg','שמירת התאמה נכשלה: '+e.message)}finally{saveMatch.disabled=false}};
-   tdMatch.append(selector,saveMatch);
-  }
+   const tdMatch=document.createElement('td');
+   const existing=documentMatches.find(m=>m.delivery_invoice_id===a.invoice_id);
+   if(!matchingEnabled){tdMatch.textContent='נדרש להפעיל התאמת מסמכים ב־Supabase';tdMatch.className='muted'}
+   else{
+    const financial=analyses.filter(x=>['invoice','tax_invoice','tax_invoice_receipt'].includes(x.document_type)&&x.invoice_id!==a.invoice_id);
+    const ranked=financial.map(f=>({...matchScore(a,f),analysis:f})).sort((x,y)=>y.score-x.score);
+    const suggested=ranked.find(x=>x.score>=70);
+    const wrapper=document.createElement('div');wrapper.className='match-actions';
+    const selector=document.createElement('select');selector.className='review-input match-select';selector.setAttribute('aria-label','בחר חשבונית להתאמה');
+    const empty=document.createElement('option');empty.value='';empty.textContent='ללא התאמה';selector.append(empty);
+    for(const candidate of ranked){const f=candidate.analysis,option=document.createElement('option');option.value=f.invoice_id;
+     const fin=invoiceMap.get(f.invoice_id)||{},ex=f.extracted||{};
+     option.textContent=(candidate.score>=70?'★ ':'')+(ex.supplier_name||fin.supplier_name||'ספק לא ידוע')+' — '+(ex.document_number||fin.invoice_number||'ללא מספר')+' ('+(ex.document_date||fin.invoice_date||'ללא תאריך')+')';selector.append(option)}
+    if(existing&&!financial.some(f=>f.invoice_id===existing.financial_invoice_id)){
+     const unavailable=document.createElement('option');unavailable.value=existing.financial_invoice_id;unavailable.textContent='התאמה קיימת — חשבונית לא זמינה';selector.append(unavailable)}
+    selector.value=existing?.financial_invoice_id||suggested?.analysis.invoice_id||'';
+    const saveMatch=document.createElement('button');saveMatch.type='button';saveMatch.className='file-button';saveMatch.textContent=existing?'עדכן התאמה':'אשר התאמה';
+    saveMatch.onclick=async()=>{saveMatch.disabled=true;try{
+     await api('/rest/v1/rpc/set_invoice_document_match',{method:'POST',body:{p_delivery_id:a.invoice_id,p_financial_id:selector.value||null}});
+     await loadCostData();msg('appMsg','ההתאמה נשמרה. לא נוסף חיוב כפול.',true);
+    }catch(e){msg('appMsg','שמירת התאמה נכשלה: '+e.message)}finally{saveMatch.disabled=false}};
+    wrapper.append(selector,saveMatch);tdMatch.append(wrapper);
+    const hint=document.createElement('div');hint.className='match-hint';
+    if(existing){hint.textContent='✓ קיימת התאמה שמורה';hint.classList.add('match-ok')}
+    else if(suggested){hint.textContent='הצעה לבדיקה בלבד: '+suggested.why+' — יש לאשר ידנית';hint.classList.add('match-pending')}
+    else{hint.textContent=financial.length?'לא נמצאה התאמה ברורה. אפשר לבחור ידנית.':'אין עדיין חשבוניות מנותחות להתאמה'}
+    tdMatch.append(hint);
+   }
   tr.append(tdMatch);$('costRows').append(tr);
  }
  if(!deliveries.length){const tr=document.createElement('tr');const td=document.createElement('td');td.colSpan=7;td.textContent='אין עדיין תעודות משלוח שנותחו ונשמרו';tr.append(td);$('costRows').append(tr)}
