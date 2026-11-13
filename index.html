@@ -23,7 +23,7 @@
 <div><label for="status">סטטוס</label><select id="status"><option value="unpaid">לא שולם</option><option value="paid">שולם</option></select></div>
 <div><label for="invoiceFile">קובץ חשבונית (PDF או תמונה)</label><input id="invoiceFile" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp"><div class="muted">עד 10MB. ניתן לשמור חשבונית גם בלי קובץ.</div></div>
 </div><p><button type="submit" id="saveBtn">שמור חשבונית</button></p></form><p class="muted">הקבצים נשמרים באחסון פרטי של העסק ב־Supabase.</p></section>
-<section class="panel"><h2>רשימת חשבוניות</h2><input id="search" placeholder="חיפוש לפי ספק או מספר חשבונית"><div class="scroll"><table><thead><tr><th>ספק</th><th>מספר</th><th>סכום</th><th>תאריך</th><th>סטטוס</th><th>קובץ</th></tr></thead><tbody id="rows"></tbody></table></div></section>
+<section class="panel"><h2>רשימת חשבוניות</h2><input id="search" placeholder="חיפוש לפי ספק או מספר חשבונית"><div class="scroll"><table><thead><tr><th>ספק</th><th>מספר</th><th>סכום</th><th>תאריך</th><th>סטטוס</th><th>קובץ</th><th>ניתוח AI</th></tr></thead><tbody id="rows"></tbody></table></div></section>
 </section></main>
 <script>
 // Public Supabase configuration only. Never add a service_role or secret key.
@@ -67,7 +67,7 @@ function render(){
  $('sum').textContent=money(invoices.reduce((s,x)=>s+Number(field(x,['amount','total_amount','total'])||0),0));
  $('unpaid').textContent=money(invoices.filter(x=>!['paid','שולם'].includes(String(x.status).toLowerCase())).reduce((s,x)=>s+Number(field(x,['amount','total_amount','total'])||0),0));
  $('rows').replaceChildren();
- if(!filtered.length){const tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=6;td.textContent='אין חשבוניות להצגה';tr.append(td);$('rows').append(tr)}
+ if(!filtered.length){const tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=7;td.textContent='אין חשבוניות להצגה';tr.append(td);$('rows').append(tr)}
  for(const x of filtered){
   const tr=document.createElement('tr');
   for(const value of [field(x,['supplier_name','supplier','supplier_id']),field(x,['invoice_number','number']),money(field(x,['amount','total_amount','total'])),field(x,['invoice_date','date','created_at']),['paid','שולם'].includes(String(x.status).toLowerCase())?'שולם':'לא שולם']){
@@ -76,7 +76,13 @@ function render(){
   const td=document.createElement('td');
   if(x.file_path){const button=document.createElement('button');button.type='button';button.className='secondary file-button';button.textContent='פתח קובץ';button.addEventListener('click',()=>openInvoiceFile(x.file_path,button));td.append(button)}
   else{const span=document.createElement('span');span.className='empty-file';span.textContent='ללא קובץ';td.append(span)}
-  tr.append(td);$('rows').append(tr);
+  tr.append(td);
+  const aiTd=document.createElement('td');
+  if(x.file_path){
+   const aiButton=document.createElement('button');aiButton.type='button';aiButton.className='file-button';aiButton.textContent='נתח באמצעות AI';
+   aiButton.addEventListener('click',()=>analyzeInvoice(x,aiButton));aiTd.append(aiButton);
+  }else{aiTd.textContent='נדרש קובץ';aiTd.className='muted'}
+  tr.append(aiTd);$('rows').append(tr);
  }
 }
 function validateFile(file){if(!file)return;if(file.size>MAX_FILE_SIZE)throw Error('הקובץ גדול מ־10MB');if(!ALLOWED_TYPES.has(file.type))throw Error('ניתן להעלות PDF, JPG, PNG או WEBP בלבד')}
@@ -100,6 +106,22 @@ async function openInvoiceFile(path,button){
   if(url.origin!==new URL(BASE).origin)throw Error('כתובת קובץ לא תקינה');
   if(tab){tab.opener=null;tab.location.replace(url.href)}else{msg('appMsg','הדפדפן חסם חלון חדש. אפשר חלונות קופצים לאתר ונסה שוב')}
  }catch(e){if(tab)tab.close();msg('appMsg','פתיחת קובץ נכשלה: '+e.message)}finally{button.disabled=false;button.textContent=oldText}
+}
+async function analyzeInvoice(invoice,button){
+ if(!token||!businessId){msg('appMsg','יש להתחבר מחדש');return}
+ if(!invoice.file_path||!invoice.file_path.startsWith(businessId+'/')){msg('appMsg','אין קובץ תקין לניתוח');return}
+ button.disabled=true;button.textContent='מנתח...';msg('appMsg','שולח את החשבונית לניתוח AI...');
+ try{
+  const result=await api('/functions/v1/analyze-invoice',{method:'POST',body:{invoice_id:invoice.id,business_id:businessId,file_path:invoice.file_path}});
+  const output=document.createElement('div');output.className='message ok';
+  const heading=document.createElement('strong');heading.textContent='תוצאת ניתוח AI — חשבונית '+String(invoice.invoice_number||'');
+  const pre=document.createElement('pre');pre.style.cssText='white-space:pre-wrap;overflow-wrap:anywhere;direction:ltr;text-align:left';
+  pre.textContent=JSON.stringify(result,null,2);
+  output.append(heading,pre);$('appMsg').replaceChildren(output);
+  // Refresh in the background only if the function writes updated invoice data.
+  invoices=await api('/rest/v1/invoices?select=*&business_id=eq.'+encodeURIComponent(businessId)+'&order=created_at.desc&limit=1000');render();
+ }catch(e){msg('appMsg','ניתוח החשבונית נכשל: '+e.message+'\nאם הפונקציה מצפה לשדות אחרים, נצטרך להתאים את החיבור לקוד שלה.');}
+ finally{button.disabled=false;button.textContent='נתח באמצעות AI'}
 }
 async function saveInvoice(e){
  e.preventDefault();$('saveBtn').disabled=true;msg('appMsg','');
