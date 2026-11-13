@@ -14,6 +14,7 @@
 <section id="app">
 <div class="row" style="margin-bottom:18px"><h2 id="businessTitle">חשבוניות</h2><button class="secondary" id="logout">התנתק</button></div>
 <div class="stats"><div class="stat">סך חשבוניות<b id="total">0</b></div><div class="stat">סך סכומים<b id="sum">₪0</b></div><div class="stat">יתרה לתשלום<b id="unpaid">₪0</b></div></div>
+<section class="panel" id="costPanel"><h2>עלות סחורה ומסמכים</h2><div class="stats"><div class="stat">עלות מתעודות משלוח<b id="deliveryCost">₪0</b></div><div class="stat">תעודות משלוח שנותחו<b id="deliveryCount">0</b></div><div class="stat">מוצרים שנקלטו<b id="itemCount">0</b></div></div><p class="muted" id="costNote">טוען נתוני סחורה...</p><div class="scroll"><table><thead><tr><th>מסמך</th><th>ספק שזוהה</th><th>תאריך</th><th>מוצרים</th><th>עלות שורות</th><th>מצב</th></tr></thead><tbody id="costRows"></tbody></table></div><p class="review-note">עלות הסחורה מתעודות משלוח מוצגת בנפרד מחובות לספקים. אין לחבר את שני הסכומים: אותה סחורה עלולה להופיע בהמשך גם בחשבונית. התאמה בין המסמכים עדיין דורשת בדיקה.</p></section>
 <div id="appMsg" role="status" aria-live="polite"></div>
 <section class="panel"><h2>קליטת חשבונית</h2><div class="auto-panel"><h3>העלאה חכמה — פשוט מעלים תמונה או PDF</h3><p>המערכת תשמור את הקובץ ותנסה לזהות אוטומטית ספק, תאריך, פריטים, כמויות ומחירים. נתונים שלא זוהו יישארו לבדיקה.</p><label for="quickFile">בחר תמונה או PDF</label><input id="quickFile" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp"><p><button type="button" id="quickBtn">העלה ונתח אוטומטית</button></p><p class="muted">עד 10MB. יש לבדוק את הנתונים לפני אישור חשבונאי. הקליטה הידנית זמינה בהמשך.</p></div><h3>קליטה ידנית (לפי הצורך)</h3><form id="invoiceForm"><div class="grid">
 <div><label for="supplier">שם ספק</label><input id="supplier" required></div>
@@ -34,6 +35,7 @@ const MAX_FILE_SIZE=10*1024*1024;
 const ALLOWED_TYPES=new Set(['application/pdf','image/jpeg','image/png','image/webp']);
 let token='',businessId='',invoices=[],userEmail='';
 let lastAnalysis=null,lastInvoice=null;
+let analyses=[],invoiceItems=[];
 const $=id=>document.getElementById(id);
 const money=n=>new Intl.NumberFormat('he-IL',{style:'currency',currency:'ILS'}).format(Number(n)||0);
 function msg(id,text,ok=false){$(id).replaceChildren();if(text){const d=document.createElement('div');d.className='message'+(ok?' ok':'');d.textContent=text;$(id).append(d)}}
@@ -58,7 +60,7 @@ async function loadBusiness(uid){
  $('businessTitle').textContent='חשבוניות — '+businesses[0].name;
 }
 async function refresh(){try{
- invoices=await api('/rest/v1/invoices?select=*&business_id=eq.'+encodeURIComponent(businessId)+'&order=created_at.desc&limit=1000');msg('appMsg','');render();
+ invoices=await api('/rest/v1/invoices?select=*&business_id=eq.'+encodeURIComponent(businessId)+'&order=created_at.desc&limit=1000');render();await loadCostData();
  }catch(e){msg('appMsg','טעינת חשבוניות נכשלה: '+e.message)}}
 function field(obj,keys){for(const k of keys)if(obj[k]!==undefined&&obj[k]!==null)return obj[k];return ''}
 function render(){
@@ -85,6 +87,46 @@ function render(){
   }else{aiTd.textContent='נדרש קובץ';aiTd.className='muted'}
   tr.append(aiTd);$('rows').append(tr);
  }
+}
+async function loadCostData(){
+ try{
+  const id=encodeURIComponent(businessId);
+  const [a,items]=await Promise.all([
+   api('/rest/v1/invoice_analysis?select=invoice_id,extracted,document_type,reviewed&business_id=eq.'+id+'&limit=1000'),
+   api('/rest/v1/invoice_items?select=invoice_id,description,quantity,unit_price,line_total&business_id=eq.'+id+'&limit=10000')
+  ]);
+  analyses=Array.isArray(a)?a:[];invoiceItems=Array.isArray(items)?items:[];
+  renderCosts();
+ }catch(e){$('costNote').textContent='לא ניתן לטעון את נתוני המוצרים: '+e.message+' — ודא שהטבלאות invoice_analysis ו־invoice_items קיימות ושהמשתמש מורשה לקרוא אותן.'}
+}
+function renderCosts(){
+ const invoiceMap=new Map(invoices.map(x=>[x.id,x]));
+ const byInvoice=new Map();
+ for(const item of invoiceItems){if(!byInvoice.has(item.invoice_id))byInvoice.set(item.invoice_id,[]);byInvoice.get(item.invoice_id).push(item)}
+ const deliveries=analyses.filter(a=>a.document_type==='delivery_note');
+ let total=0,priced=0,missing=0;
+ $('costRows').replaceChildren();
+ for(const a of deliveries){
+  const items=byInvoice.get(a.invoice_id)||[];
+  let subtotal=0,known=0;
+  for(const item of items){
+   let amount=item.line_total;
+   if(amount===null||amount===undefined){if(item.quantity!==null&&item.quantity!==undefined&&item.unit_price!==null&&item.unit_price!==undefined)amount=Number(item.quantity)*Number(item.unit_price)}
+   if(amount!==null&&amount!==undefined&&amount!==''&&Number.isFinite(Number(amount))){subtotal+=Number(amount);known++}else missing++;
+  }
+  total+=subtotal;priced+=known;
+  const d=a.extracted||{};const inv=invoiceMap.get(a.invoice_id)||{};
+  const tr=document.createElement('tr');
+  for(const value of [d.document_number||inv.invoice_number||'ללא מספר',d.supplier_name||inv.supplier_name||'לא זוהה',d.document_date||inv.invoice_date||'לא זוהה',String(items.length),money(subtotal),known===items.length&&items.length?'סכום שורות זוהה':'נדרשת בדיקה']){
+   const td=document.createElement('td');td.textContent=value;tr.append(td);
+  }
+  $('costRows').append(tr);
+ }
+ if(!deliveries.length){const tr=document.createElement('tr');const td=document.createElement('td');td.colSpan=6;td.textContent='אין עדיין תעודות משלוח שנותחו ונשמרו';tr.append(td);$('costRows').append(tr)}
+ $('deliveryCost').textContent=money(total);
+ $('deliveryCount').textContent=String(deliveries.length);
+ $('itemCount').textContent=String(invoiceItems.length);
+ $('costNote').textContent='סיכום זמני של שורות מזוהות בתעודות משלוח: '+priced+' שורות עם מחיר'+(missing?' · '+missing+' שורות ללא מחיר מלא':'')+'. לא כולל מע״מ שלא זוהה ולא מהווה עדיין דוח פוד־קוסט סופי. סכומים יכולים להשתנות לאחר תיקון הזיהוי.';
 }
 function validateFile(file){if(!file)return;if(file.size>MAX_FILE_SIZE)throw Error('הקובץ גדול מ־10MB');if(!ALLOWED_TYPES.has(file.type))throw Error('ניתן להעלות PDF, JPG, PNG או WEBP בלבד')}
 function fileExtension(file){return {'application/pdf':'pdf','image/jpeg':'jpg','image/png':'png','image/webp':'webp'}[file.type]}
@@ -198,7 +240,7 @@ $('loginForm').addEventListener('submit',signIn);
 $('invoiceForm').addEventListener('submit',saveInvoice);
 $('quickBtn').addEventListener('click',quickUpload);
 $('search').addEventListener('input',render);
-$('logout').onclick=()=>{token='';businessId='';invoices=[];$('app').style.display='none';$('login').style.display='block';$('identity').textContent='';$('password').value='';msg('loginMsg','');msg('appMsg','')};
+$('logout').onclick=()=>{token='';businessId='';invoices=[];analyses=[];invoiceItems=[];$('app').style.display='none';$('login').style.display='block';$('identity').textContent='';$('password').value='';msg('loginMsg','');msg('appMsg','')};
 $('invoiceDate').value=localDate();
 </script>
 </body></html>
