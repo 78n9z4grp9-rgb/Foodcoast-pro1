@@ -1,19 +1,122 @@
 <!doctype html>
-<html lang="he" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>מערכת ניהול חשבוניות</title><style>
-:root{font-family:Arial,sans-serif;color:#172c43;background:#f3f6fa}*{box-sizing:border-box}body{margin:0}header{background:#172c43;color:white;padding:22px 5%;display:flex;justify-content:space-between;align-items:center}h1{font-size:24px;margin:0}header small{display:block;margin-top:7px}main{max-width:1100px;margin:35px auto;padding:0 16px}.panel{background:white;border-radius:16px;padding:25px;margin-bottom:18px;box-shadow:0 3px 15px #152c4310}.login{max-width:520px;margin:50px auto}label{display:block;margin:12px 0 5px;font-weight:bold;font-size:14px}input,select,button{font:inherit;padding:12px;border-radius:9px;border:1px solid #cbd5e1}input,select{width:100%;background:white}button{background:#1968ac;color:white;border:0;cursor:pointer;font-weight:bold}button:hover{filter:brightness(.95)}button:disabled{opacity:.6;cursor:wait}.secondary{background:#e7eef5;color:#18364d}.danger{background:#a72f35}.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.row>*{flex:1}.row button{flex:0 0 auto}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.stat{background:#eaf3fd;padding:20px;border-radius:13px;text-align:center}.stat b{font-size:24px;display:block;margin-top:8px}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}.message{padding:12px;border-radius:9px;margin:14px 0;background:#fff0f0;color:#a32b2b;white-space:pre-wrap}.ok{background:#e8f8ed;color:#156a36}.muted{color:#617286;font-size:13px}table{width:100%;border-collapse:collapse}th,td{padding:12px;text-align:right;border-bottom:1px solid #e4eaf1}th{background:#f5f8fb} .scroll{overflow-x:auto}#app{display:none}@media(max-width:650px){.grid,.stats{grid-template-columns:1fr}header{display:block}h1{font-size:21px}}
-</style></head><body><header><div><h1>מערכת ניהול חשבוניות</h1><small>ניהול ספקים, תשלומים והוצאות</small></div><div id="identity"></div></header><main><section id="login" class="panel login"><h2>כניסה למערכת</h2><form id="loginForm"><label>אימייל</label><input type="email" id="email" required autocomplete="username"><label>סיסמה</label><input type="password" id="password" required autocomplete="current-password"><p><button id="loginBtn" type="submit" style="width:100%">התחבר</button></p></form><div id="loginMsg"></div></section><section id="app"><div class="row" style="margin-bottom:18px"><h2 id="businessTitle">חשבוניות</h2><button class="secondary" id="logout">התנתק</button></div><div class="stats"><div class="stat">סך חשבוניות<b id="total">0</b></div><div class="stat">סך סכומים<b id="sum">₪0</b></div><div class="stat">יתרה לתשלום<b id="unpaid">₪0</b></div></div><div id="appMsg"></div><section class="panel"><h2>הוספת חשבונית</h2><form id="invoiceForm"><div class="grid"><div><label>שם ספק</label><input id="supplier" required></div><div><label>מספר חשבונית</label><input id="invoiceNumber" required></div><div><label>סכום בשקלים</label><input id="amount" type="number" min="0" step="0.01" required></div><div><label>תאריך</label><input id="invoiceDate" type="date" required></div><div><label>סטטוס</label><select id="status"><option value="unpaid">לא שולם</option><option value="paid">שולם</option></select></div></div><p><button type="submit" id="saveBtn">שמור חשבונית</button></p></form><p class="muted">החשבוניות נשמרות בענן של העסק המחובר, בכפוף להרשאות Supabase.</p></section><section class="panel"><h2>רשימת חשבוניות</h2><input id="search" placeholder="חיפוש לפי ספק או מספר חשבונית"><div class="scroll"><table><thead><tr><th>ספק</th><th>מספר</th><th>סכום</th><th>תאריך</th><th>סטטוס</th></tr></thead><tbody id="rows"></tbody></table></div></section></section></main><script>
-// Supabase project public configuration; never put a secret/service_role key in this file.
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>מערכת ניהול חשבוניות</title>
+<style>
+:root{font-family:Arial,sans-serif;color:#172c43;background:#f3f6fa}*{box-sizing:border-box}body{margin:0}header{background:#172c43;color:white;padding:22px 5%;display:flex;justify-content:space-between;align-items:center}h1{font-size:24px;margin:0}header small{display:block;margin-top:7px}main{max-width:1100px;margin:35px auto;padding:0 16px}.panel{background:white;border-radius:16px;padding:25px;margin-bottom:18px;box-shadow:0 3px 15px #152c4310}.login{max-width:520px;margin:50px auto}label{display:block;margin:12px 0 5px;font-weight:bold;font-size:14px}input,select,button{font:inherit;padding:12px;border-radius:9px;border:1px solid #cbd5e1}input,select{width:100%;background:white}button{background:#1968ac;color:white;border:0;cursor:pointer;font-weight:bold}button:hover{filter:brightness(.95)}button:disabled{opacity:.6;cursor:wait}.secondary{background:#e7eef5;color:#18364d}.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.row>*{flex:1}.row button{flex:0 0 auto}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.stat{background:#eaf3fd;padding:20px;border-radius:13px;text-align:center}.stat b{font-size:24px;display:block;margin-top:8px}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}.message{padding:12px;border-radius:9px;margin:14px 0;background:#fff0f0;color:#a32b2b;white-space:pre-wrap}.ok{background:#e8f8ed;color:#156a36}.muted{color:#617286;font-size:13px}table{width:100%;border-collapse:collapse}th,td{padding:12px;text-align:right;border-bottom:1px solid #e4eaf1}th{background:#f5f8fb}.scroll{overflow-x:auto}#app{display:none}.file-button{padding:8px 12px;font-size:13px;white-space:nowrap}.empty-file{color:#8a97a7}@media(max-width:650px){.grid,.stats{grid-template-columns:1fr}header{display:block}h1{font-size:21px}}
+</style>
+</head>
+<body>
+<header><div><h1>מערכת ניהול חשבוניות</h1><small>ניהול ספקים, תשלומים והוצאות</small></div><div id="identity"></div></header>
+<main>
+<section id="login" class="panel login"><h2>כניסה למערכת</h2><form id="loginForm"><label for="email">אימייל</label><input type="email" id="email" required autocomplete="username"><label for="password">סיסמה</label><input type="password" id="password" required autocomplete="current-password"><p><button id="loginBtn" type="submit" style="width:100%">התחבר</button></p></form><div id="loginMsg"></div></section>
+<section id="app">
+<div class="row" style="margin-bottom:18px"><h2 id="businessTitle">חשבוניות</h2><button class="secondary" id="logout">התנתק</button></div>
+<div class="stats"><div class="stat">סך חשבוניות<b id="total">0</b></div><div class="stat">סך סכומים<b id="sum">₪0</b></div><div class="stat">יתרה לתשלום<b id="unpaid">₪0</b></div></div>
+<div id="appMsg" role="status" aria-live="polite"></div>
+<section class="panel"><h2>הוספת חשבונית</h2><form id="invoiceForm"><div class="grid">
+<div><label for="supplier">שם ספק</label><input id="supplier" required></div>
+<div><label for="invoiceNumber">מספר חשבונית</label><input id="invoiceNumber" required></div>
+<div><label for="amount">סכום בשקלים</label><input id="amount" type="number" min="0" step="0.01" required></div>
+<div><label for="invoiceDate">תאריך</label><input id="invoiceDate" type="date" required></div>
+<div><label for="status">סטטוס</label><select id="status"><option value="unpaid">לא שולם</option><option value="paid">שולם</option></select></div>
+<div><label for="invoiceFile">קובץ חשבונית (PDF או תמונה)</label><input id="invoiceFile" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp"><div class="muted">עד 10MB. ניתן לשמור חשבונית גם בלי קובץ.</div></div>
+</div><p><button type="submit" id="saveBtn">שמור חשבונית</button></p></form><p class="muted">הקבצים נשמרים באחסון פרטי של העסק ב־Supabase.</p></section>
+<section class="panel"><h2>רשימת חשבוניות</h2><input id="search" placeholder="חיפוש לפי ספק או מספר חשבונית"><div class="scroll"><table><thead><tr><th>ספק</th><th>מספר</th><th>סכום</th><th>תאריך</th><th>סטטוס</th><th>קובץ</th></tr></thead><tbody id="rows"></tbody></table></div></section>
+</section></main>
+<script>
+// Public Supabase configuration only. Never add a service_role or secret key.
 const BASE='https://zblsihcenybvwbgatkjs.supabase.co';
 const KEY='sb_publishable_N0yKwMOvgDVGhm81deH4VA_pC0uKFcx';
-let token='', businessId='', invoices=[], userEmail='';
-const $=id=>document.getElementById(id), money=n=>new Intl.NumberFormat('he-IL',{style:'currency',currency:'ILS'}).format(Number(n)||0);
-function msg(id,text,ok=false){$(id).innerHTML=text?'<div class="message '+(ok?'ok':'')+'"></div>':'';if(text)$(id).firstChild.textContent=text}
-async function api(path,{method='GET',body,auth=true}={}){let res=await fetch(BASE+path,{method,headers:{'apikey':KEY,'Content-Type':'application/json',...(auth&&token?{'Authorization':'Bearer '+token}:{}),...(method==='POST'?{'Prefer':'return=representation'}:{})},body:body?JSON.stringify(body):undefined});let raw=await res.text(),data;try{data=JSON.parse(raw)}catch{data=raw}if(!res.ok)throw Error((data&& (data.message||data.error_description||data.error))||('HTTP '+res.status));return data}
-async function signIn(e){e.preventDefault();$('loginBtn').disabled=true;msg('loginMsg','');try{let data=await api('/auth/v1/token?grant_type=password',{method:'POST',body:{email:$('email').value.trim(),password:$('password').value},auth:false});token=data.access_token;userEmail=data.user?.email||$('email').value;await loadBusiness(data.user.id);$('login').style.display='none';$('app').style.display='block';$('identity').textContent=userEmail;await refresh()}catch(err){token='';msg('loginMsg',err.message)}finally{$('loginBtn').disabled=false}}
-async function loadBusiness(uid){let memberships=await api('/rest/v1/business_users?select=business_id,role&user_id=eq.'+encodeURIComponent(uid)+'&limit=1');if(!memberships.length)throw Error('המשתמש אינו משויך לעסק בטבלת business_users');businessId=memberships[0].business_id;let b=await api('/rest/v1/businesses?select=id,name&id=eq.'+encodeURIComponent(businessId)+'&limit=1');if(!b.length)throw Error('לא נמצאה הרשאת צפייה בעסק. יש לבדוק RLS של businesses');$('businessTitle').textContent='חשבוניות — '+b[0].name}
-async function refresh(){try{invoices=await api('/rest/v1/invoices?select=*&business_id=eq.'+encodeURIComponent(businessId)+'&limit=1000');msg('appMsg','');render()}catch(e){msg('appMsg','טעינת חשבוניות נכשלה: '+e.message)}}
-function field(o,keys){for(let k of keys)if(o[k]!==undefined&&o[k]!==null)return o[k];return ''}
-function render(){let q=$('search').value.toLowerCase(),filtered=invoices.filter(x=>String(field(x,['supplier_name','supplier','supplier_id'])).toLowerCase().includes(q)||String(field(x,['invoice_number','number'])).toLowerCase().includes(q));$('total').textContent=invoices.length;$('sum').textContent=money(invoices.reduce((s,x)=>s+Number(field(x,['amount','total_amount','total'])||0),0));$('unpaid').textContent=money(invoices.filter(x=>!['paid','שולם'].includes(String(x.status).toLowerCase())).reduce((s,x)=>s+Number(field(x,['amount','total_amount','total'])||0),0));$('rows').replaceChildren();if(!filtered.length){let tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=5;td.textContent='אין חשבוניות להצגה';tr.append(td);$('rows').append(tr)}for(let x of filtered){let tr=document.createElement('tr');for(let v of [field(x,['supplier_name','supplier','supplier_id']),field(x,['invoice_number','number']),money(field(x,['amount','total_amount','total'])),field(x,['invoice_date','date','created_at']),['paid','שולם'].includes(String(x.status).toLowerCase())?'שולם':'לא שולם']){let td=document.createElement('td');td.textContent=v;tr.append(td)}$('rows').append(tr)}}
-async function saveInvoice(e){e.preventDefault();$('saveBtn').disabled=true;try{await api('/rest/v1/invoices',{method:'POST',body:{business_id:businessId,supplier_name:$('supplier').value.trim(),invoice_number:$('invoiceNumber').value.trim(),amount:Number($('amount').value),invoice_date:$('invoiceDate').value,status:$('status').value}});$('invoiceForm').reset();$('invoiceDate').value=new Date().toLocaleDateString('en-CA');await refresh();msg('appMsg','החשבונית נשמרה בהצלחה',true)}catch(e){msg('appMsg','שמירה נכשלה: '+e.message+'\nייתכן ששמות העמודות בטבלת invoices שונים מהשדות בגרסה הזאת.')}finally{$('saveBtn').disabled=false}}
-$('loginForm').addEventListener('submit',signIn);$('invoiceForm').addEventListener('submit',saveInvoice);$('search').addEventListener('input',render);$('logout').onclick=()=>{token='';businessId='';invoices=[];$('app').style.display='none';$('login').style.display='block';$('identity').textContent='';$('password').value='';msg('loginMsg','')};$('invoiceDate').value=new Date().toLocaleDateString('en-CA');
-</script></body></html>
+const BUCKET='invoice-files';
+const MAX_FILE_SIZE=10*1024*1024;
+const ALLOWED_TYPES=new Set(['application/pdf','image/jpeg','image/png','image/webp']);
+let token='',businessId='',invoices=[],userEmail='';
+const $=id=>document.getElementById(id);
+const money=n=>new Intl.NumberFormat('he-IL',{style:'currency',currency:'ILS'}).format(Number(n)||0);
+function msg(id,text,ok=false){$(id).replaceChildren();if(text){const d=document.createElement('div');d.className='message'+(ok?' ok':'');d.textContent=text;$(id).append(d)}}
+async function request(path,{method='GET',body,auth=true,headers={}}={}){
+ const response=await fetch(BASE+path,{method,headers:{apikey:KEY,...(auth&&token?{Authorization:'Bearer '+token}:{}),...headers},body});
+ const raw=await response.text();let data;try{data=raw?JSON.parse(raw):null}catch{data=raw}
+ if(!response.ok){const detail=typeof data==='object'&&data?(data.message||data.error_description||data.error||data.msg):null;throw Error(detail||'HTTP '+response.status)}
+ return data;
+}
+async function api(path,{method='GET',body,auth=true}={}){return request(path,{method,auth,headers:{'Content-Type':'application/json',...(method==='POST'?{Prefer:'return=representation'}:{})},body:body===undefined?undefined:JSON.stringify(body)})}
+async function signIn(e){e.preventDefault();$('loginBtn').disabled=true;msg('loginMsg','');try{
+ const data=await api('/auth/v1/token?grant_type=password',{method:'POST',body:{email:$('email').value.trim(),password:$('password').value},auth:false});
+ token=data.access_token;userEmail=data.user?.email||$('email').value;
+ await loadBusiness(data.user.id);$('login').style.display='none';$('app').style.display='block';$('identity').textContent=userEmail;await refresh();
+ }catch(err){token='';businessId='';msg('loginMsg',err.message)}finally{$('loginBtn').disabled=false}}
+async function loadBusiness(uid){
+ const memberships=await api('/rest/v1/business_users?select=business_id,role&user_id=eq.'+encodeURIComponent(uid)+'&limit=1');
+ if(!memberships.length)throw Error('המשתמש אינו משויך לעסק בטבלת business_users');
+ businessId=memberships[0].business_id;
+ const businesses=await api('/rest/v1/businesses?select=id,name&id=eq.'+encodeURIComponent(businessId)+'&limit=1');
+ if(!businesses.length)throw Error('לא נמצאה הרשאת צפייה בעסק. יש לבדוק RLS של businesses');
+ $('businessTitle').textContent='חשבוניות — '+businesses[0].name;
+}
+async function refresh(){try{
+ invoices=await api('/rest/v1/invoices?select=*&business_id=eq.'+encodeURIComponent(businessId)+'&order=created_at.desc&limit=1000');msg('appMsg','');render();
+ }catch(e){msg('appMsg','טעינת חשבוניות נכשלה: '+e.message)}}
+function field(obj,keys){for(const k of keys)if(obj[k]!==undefined&&obj[k]!==null)return obj[k];return ''}
+function render(){
+ const q=$('search').value.toLowerCase();
+ const filtered=invoices.filter(x=>String(field(x,['supplier_name','supplier','supplier_id'])).toLowerCase().includes(q)||String(field(x,['invoice_number','number'])).toLowerCase().includes(q));
+ $('total').textContent=invoices.length;
+ $('sum').textContent=money(invoices.reduce((s,x)=>s+Number(field(x,['amount','total_amount','total'])||0),0));
+ $('unpaid').textContent=money(invoices.filter(x=>!['paid','שולם'].includes(String(x.status).toLowerCase())).reduce((s,x)=>s+Number(field(x,['amount','total_amount','total'])||0),0));
+ $('rows').replaceChildren();
+ if(!filtered.length){const tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=6;td.textContent='אין חשבוניות להצגה';tr.append(td);$('rows').append(tr)}
+ for(const x of filtered){
+  const tr=document.createElement('tr');
+  for(const value of [field(x,['supplier_name','supplier','supplier_id']),field(x,['invoice_number','number']),money(field(x,['amount','total_amount','total'])),field(x,['invoice_date','date','created_at']),['paid','שולם'].includes(String(x.status).toLowerCase())?'שולם':'לא שולם']){
+   const td=document.createElement('td');td.textContent=value;tr.append(td);
+  }
+  const td=document.createElement('td');
+  if(x.file_path){const button=document.createElement('button');button.type='button';button.className='secondary file-button';button.textContent='פתח קובץ';button.addEventListener('click',()=>openInvoiceFile(x.file_path,button));td.append(button)}
+  else{const span=document.createElement('span');span.className='empty-file';span.textContent='ללא קובץ';td.append(span)}
+  tr.append(td);$('rows').append(tr);
+ }
+}
+function validateFile(file){if(!file)return;if(file.size>MAX_FILE_SIZE)throw Error('הקובץ גדול מ־10MB');if(!ALLOWED_TYPES.has(file.type))throw Error('ניתן להעלות PDF, JPG, PNG או WEBP בלבד')}
+function fileExtension(file){return {'application/pdf':'pdf','image/jpeg':'jpg','image/png':'png','image/webp':'webp'}[file.type]}
+async function uploadInvoiceFile(file){
+ validateFile(file);
+ const name=crypto.randomUUID()+'.'+fileExtension(file);
+ const path=businessId+'/'+name;
+ await request('/storage/v1/object/'+encodeURIComponent(BUCKET)+'/'+path,{method:'POST',headers:{'Content-Type':file.type,'x-upsert':'false'},body:file});
+ return path;
+}
+async function openInvoiceFile(path,button){
+ if(typeof path!=='string'||!path.startsWith(businessId+'/')){msg('appMsg','אין הרשאה לפתוח קובץ של עסק אחר');return}
+ button.disabled=true;const oldText=button.textContent;button.textContent='פותח...';
+ // Open a blank tab during the click to avoid popup blocking after the async request.
+ const tab=window.open('','_blank');
+ try{
+  const data=await api('/storage/v1/object/sign/'+encodeURIComponent(BUCKET)+'/'+path.split('/').map(encodeURIComponent).join('/'),{method:'POST',body:{expiresIn:60}});
+  if(!data?.signedURL)throw Error('לא התקבל קישור לקובץ');
+  const url=new URL(data.signedURL.startsWith('/object/')?'/storage/v1'+data.signedURL:data.signedURL,BASE+'/storage/v1/');
+  if(url.origin!==new URL(BASE).origin)throw Error('כתובת קובץ לא תקינה');
+  if(tab){tab.opener=null;tab.location.replace(url.href)}else{msg('appMsg','הדפדפן חסם חלון חדש. אפשר חלונות קופצים לאתר ונסה שוב')}
+ }catch(e){if(tab)tab.close();msg('appMsg','פתיחת קובץ נכשלה: '+e.message)}finally{button.disabled=false;button.textContent=oldText}
+}
+async function saveInvoice(e){
+ e.preventDefault();$('saveBtn').disabled=true;msg('appMsg','');
+ let uploadedPath='';
+ try{
+  const file=$('invoiceFile').files[0];if(file){validateFile(file);msg('appMsg','מעלה את הקובץ...');uploadedPath=await uploadInvoiceFile(file)}
+  msg('appMsg','שומר חשבונית...');
+  await api('/rest/v1/invoices',{method:'POST',body:{business_id:businessId,supplier_name:$('supplier').value.trim(),invoice_number:$('invoiceNumber').value.trim(),amount:Number($('amount').value),invoice_date:$('invoiceDate').value,status:$('status').value,file_path:uploadedPath||null}});
+  $('invoiceForm').reset();$('invoiceDate').value=localDate();await refresh();msg('appMsg','החשבונית נשמרה בהצלחה'+(uploadedPath?' עם הקובץ המצורף':''),true);
+ }catch(err){msg('appMsg','שמירה נכשלה: '+err.message+(uploadedPath?'\nהקובץ הועלה אך החשבונית לא נשמרה; ייתכן שנדרש ניקוי הקובץ מאחסון Supabase.':''))}
+ finally{$('saveBtn').disabled=false}
+}
+function localDate(){const d=new Date(),offset=d.getTimezoneOffset()*60000;return new Date(d.getTime()-offset).toISOString().slice(0,10)}
+$('loginForm').addEventListener('submit',signIn);
+$('invoiceForm').addEventListener('submit',saveInvoice);
+$('search').addEventListener('input',render);
+$('logout').onclick=()=>{token='';businessId='';invoices=[];$('app').style.display='none';$('login').style.display='block';$('identity').textContent='';$('password').value='';msg('loginMsg','');msg('appMsg','')};
+$('invoiceDate').value=localDate();
+</script>
+</body></html>
