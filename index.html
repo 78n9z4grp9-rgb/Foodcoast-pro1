@@ -239,18 +239,41 @@ async function updateDuplicateReview(){
 }
 
 function normalizeSupplier(v){return String(v||'').toLowerCase().replace(/["׳״'`.,()\-]/g,' ').replace(/\b(בעמ|בע מ|ltd|limited)\b/g,' ').replace(/\s+/g,' ').trim()}
+function documentAmount(analysis){
+ const ex=analysis.extracted||{};
+ const v=ex.total_amount??ex.subtotal;
+ if(v!==null&&v!==undefined&&v!==''&&Number.isFinite(Number(v))&&Number(v)>0)return Number(v);
+ const items=invoiceItems.filter(x=>x.invoice_id===analysis.invoice_id);
+ if(!items.length)return null;
+ let total=0;
+ for(const item of items){const n=item.line_total??(item.quantity!=null&&item.unit_price!=null?Number(item.quantity)*Number(item.unit_price):null);if(n==null||!Number.isFinite(Number(n)))return null;total+=Number(n)}
+ return total>0?total:null;
+}
 function matchScore(delivery,financial){
  const d=delivery.extracted||{},f=financial.extracted||{};
  const di=invoices.find(x=>x.id===delivery.invoice_id)||{},fi=invoices.find(x=>x.id===financial.invoice_id)||{};
  const ds=normalizeSupplier(d.supplier_name||di.supplier_name),fs=normalizeSupplier(f.supplier_name||fi.supplier_name);
+ // A match must have a credible supplier identity; date alone is never enough.
+ if(!ds||!fs)return {score:0,why:'לא זוהה ספק בשני המסמכים',eligible:false};
  let score=0,why=[];
- if(ds&&fs){if(ds===fs){score+=70;why.push('אותו ספק')}else if(ds.length>=5&&fs.length>=5&&(ds.includes(fs)||fs.includes(ds))){score+=35;why.push('שם ספק דומה')}}
+ const exact=ds===fs,similar=ds.length>=6&&fs.length>=6&&(ds.includes(fs)||fs.includes(ds));
+ if(!exact&&!similar)return {score:0,why:'ספק שונה',eligible:false};
+ score+=exact?70:35;why.push(exact?'אותו ספק':'שם ספק דומה');
  const dd=d.document_date||di.invoice_date,fd=f.document_date||fi.invoice_date;
- if(dd&&fd){const days=Math.abs((Date.parse(dd)-Date.parse(fd))/86400000);if(Number.isFinite(days)&&days<=45){score+=days<=7?20:days<=30?10:4;why.push('תאריכים קרובים')}}
- const dn=String(d.document_number||di.invoice_number||'').trim(),fn=String(f.document_number||fi.invoice_number||'').trim();
- if(dn&&fn&&dn===fn){score+=20;why.push('מספר מסמך זהה')}
- return {score,why:why.join(' · ')};
+ if(dd&&fd){const days=Math.abs((Date.parse(dd)-Date.parse(fd))/86400000);if(Number.isFinite(days)){if(days<=7){score+=20;why.push('תאריכים קרובים')}else if(days<=30){score+=10;why.push('עד 30 יום')}else if(days<=60){score+=3;why.push('עד 60 יום')}else{score-=20;why.push('תאריכים רחוקים')}}}
+ const dn=normalizeDocumentNumber(d.document_number||di.invoice_number),fn=normalizeDocumentNumber(f.document_number||fi.invoice_number);
+ if(dn&&fn&&dn===fn){score+=10;why.push('מספר מסמך זהה — יש לבדוק סוג מסמך')}
+ return {score,why:why.join(' · '),eligible:true};
 }
+function matchOverview(delivery,financial,invoiceMap,duplicateIds){
+ const linked=documentMatches.filter(m=>m.financial_invoice_id===financial.invoice_id&&!duplicateIds.has(m.delivery_invoice_id));
+ const linkedSum=linked.reduce((sum,m)=>{const a=analyses.find(x=>x.invoice_id===m.delivery_invoice_id);return sum+(a?documentAmount(a)||0:0)},0);
+ const finAmount=(documentAmount(financial)??Number(invoiceMap.get(financial.invoice_id)?.amount))||0;
+ const current=linked.some(m=>m.delivery_invoice_id===delivery.invoice_id);
+ const nextAmount=linkedSum+(current?0:documentAmount(delivery)||0);
+ return {linkedCount:linked.length,linkedSum,finAmount,nextAmount,current};
+}
+
 function renderCosts(){
  const invoiceMap=new Map(invoices.map(x=>[x.id,x]));
  const byInvoice=new Map();
@@ -278,15 +301,16 @@ function renderCosts(){
    const existing=documentMatches.find(m=>m.delivery_invoice_id===a.invoice_id);
    if(!matchingEnabled){tdMatch.textContent='נדרש להפעיל התאמת מסמכים ב־Supabase';tdMatch.className='muted'}
    else{
-    const financial=analyses.filter(x=>['invoice','tax_invoice','tax_invoice_receipt'].includes(x.document_type)&&x.invoice_id!==a.invoice_id);
-    const ranked=financial.map(f=>({...matchScore(a,f),analysis:f})).sort((x,y)=>y.score-x.score);
-    const suggested=ranked.find(x=>x.score>=70);
+    const financial=analyses.filter(x=>['invoice','tax_invoice','tax_invoice_receipt'].includes(x.document_type)&&x.invoice_id!==a.invoice_id&&!duplicateIds.has(x.invoice_id));
+    const ranked=financial.map(f=>({...matchScore(a,f),analysis:f})).filter(x=>x.eligible).sort((x,y)=>y.score-x.score);
+    const suggested=ranked.find(x=>x.score>=70&&!isDuplicate);
     const wrapper=document.createElement('div');wrapper.className='match-actions';
     const selector=document.createElement('select');selector.className='review-input match-select';selector.setAttribute('aria-label','בחר חשבונית להתאמה');
     const empty=document.createElement('option');empty.value='';empty.textContent='ללא התאמה';selector.append(empty);
     for(const candidate of ranked){const f=candidate.analysis,option=document.createElement('option');option.value=f.invoice_id;
      const fin=invoiceMap.get(f.invoice_id)||{},ex=f.extracted||{};
-     option.textContent=(candidate.score>=70?'★ ':'')+(ex.supplier_name||fin.supplier_name||'ספק לא ידוע')+' — '+(ex.document_number||fin.invoice_number||'ללא מספר')+' ('+(ex.document_date||fin.invoice_date||'ללא תאריך')+')';selector.append(option)}
+     const overview=matchOverview(a,f,invoiceMap,duplicateIds);
+      option.textContent=(candidate.score>=70?'★ ':'')+(ex.supplier_name||fin.supplier_name||'ספק לא ידוע')+' — '+(ex.document_number||fin.invoice_number||'ללא מספר')+' ('+(ex.document_date||fin.invoice_date||'ללא תאריך')+') · '+overview.linkedCount+' תעודות מקושרות';selector.append(option)}
     if(existing&&!financial.some(f=>f.invoice_id===existing.financial_invoice_id)){
      const unavailable=document.createElement('option');unavailable.value=existing.financial_invoice_id;unavailable.textContent='התאמה קיימת — חשבונית לא זמינה';selector.append(unavailable)}
     selector.value=existing?.financial_invoice_id||suggested?.analysis.invoice_id||'';
@@ -295,12 +319,15 @@ function renderCosts(){
      await api('/rest/v1/rpc/set_invoice_document_match',{method:'POST',body:{p_delivery_id:a.invoice_id,p_financial_id:selector.value||null}});
      await loadCostData();msg('appMsg','ההתאמה נשמרה. לא נוסף חיוב כפול.',true);
     }catch(e){msg('appMsg','שמירת התאמה נכשלה: '+e.message)}finally{saveMatch.disabled=false}};
-    wrapper.append(selector,saveMatch);tdMatch.append(wrapper);
+    if(isDuplicate){selector.disabled=true;saveMatch.disabled=true;saveMatch.textContent='עותק כפול — לא מקשרים'}
+     wrapper.append(selector,saveMatch);tdMatch.append(wrapper);
     const hint=document.createElement('div');hint.className='match-hint';
-    if(existing){hint.textContent='✓ קיימת התאמה שמורה';hint.classList.add('match-ok')}
+    if(isDuplicate){hint.textContent='עותק כפול של מסמך שכבר נקלט — לא מקשרים מחדש';hint.classList.add('match-pending')}
+     else if(existing){hint.textContent='✓ קיימת התאמה שמורה';hint.classList.add('match-ok')}
     else if(suggested){hint.textContent='הצעה לבדיקה בלבד: '+suggested.why+' — יש לאשר ידנית';hint.classList.add('match-pending')}
-    else{hint.textContent=financial.length?'לא נמצאה התאמה ברורה. אפשר לבחור ידנית.':'אין עדיין חשבוניות מנותחות להתאמה'}
+    else{hint.textContent=ranked.length?'לא נמצאה התאמה ברורה. אפשר לבחור ידנית.':'אין חשבונית מאותו ספק להתאמה'}
     tdMatch.append(hint);
+     if(!isDuplicate){const summary=document.createElement('div');summary.className='match-hint';const update=()=>{const f=financial.find(x=>x.invoice_id===selector.value);if(!f){summary.textContent='בחר חשבונית כדי לראות סכומי התאמה';return}const v=matchOverview(a,f,invoiceMap,duplicateIds);summary.textContent='תעודות מקושרות: '+v.linkedCount+' · סכום תעודות לאחר הקישור: '+money(v.nextAmount)+' · סכום חשבונית: '+money(v.finAmount)+' (ייתכנו הפרשי מע״מ)'};selector.addEventListener('change',update);update();tdMatch.append(summary)}
    }
   tr.append(tdMatch);$('costRows').append(tr);
  }
