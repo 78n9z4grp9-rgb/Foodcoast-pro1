@@ -73,9 +73,12 @@ function field(obj,keys){for(const k of keys)if(obj[k]!==undefined&&obj[k]!==nul
 function render(){
  const q=$('search').value.toLowerCase();
  const filtered=invoices.filter(x=>String(field(x,['supplier_name','supplier','supplier_id'])).toLowerCase().includes(q)||String(field(x,['invoice_number','number'])).toLowerCase().includes(q));
- $('total').textContent=invoices.length;
- $('sum').textContent=money(invoices.reduce((s,x)=>s+Number(field(x,['amount','total_amount','total'])||0),0));
- $('unpaid').textContent=money(invoices.filter(x=>!['paid','שולם'].includes(String(x.status).toLowerCase())).reduce((s,x)=>s+Number(field(x,['amount','total_amount','total'])||0),0));
+ const duplicateIds=duplicateDocumentIds();
+ const analysisMap=new Map(analyses.map(a=>[a.invoice_id,a]));
+ const financial=invoices.filter(x=>!duplicateIds.has(x.id)&&financialInvoice(x,analysisMap));
+ $('total').textContent=financial.length;
+ $('sum').textContent=money(financial.reduce((s,x)=>s+Number(field(x,['amount','total_amount','total'])||0),0));
+ $('unpaid').textContent=money(financial.filter(x=>!['paid','שולם'].includes(String(x.status).toLowerCase())).reduce((s,x)=>s+Number(field(x,['amount','total_amount','total'])||0),0));
  $('rows').replaceChildren();
  if(!filtered.length){const tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=7;td.textContent='אין חשבוניות להצגה';tr.append(td);$('rows').append(tr)}
  for(const x of filtered){
@@ -264,7 +267,8 @@ function renderCosts(){
    if(amount===null||amount===undefined){if(item.quantity!==null&&item.quantity!==undefined&&item.unit_price!==null&&item.unit_price!==undefined)amount=Number(item.quantity)*Number(item.unit_price)}
    if(amount!==null&&amount!==undefined&&amount!==''&&Number.isFinite(Number(amount))){subtotal+=Number(amount);known++}else missing++;
   }
-  total+=subtotal;priced+=known;
+  const isDuplicate=duplicateIds.has(a.invoice_id);
+  if(!isDuplicate){total+=subtotal;priced+=known;}
   const d=a.extracted||{};const inv=invoiceMap.get(a.invoice_id)||{};
   const tr=document.createElement('tr');
   for(const value of [d.document_number||inv.invoice_number||'ללא מספר',d.supplier_name||inv.supplier_name||'לא זוהה',d.document_date||inv.invoice_date||'לא זוהה',String(items.length),money(subtotal),isDuplicate?'כפילות — לא נספר':known===items.length&&items.length?'סכום שורות זוהה':'נדרשת בדיקה']){
@@ -304,6 +308,7 @@ function renderCosts(){
  $('deliveryCost').textContent=money(total);
  $('deliveryCount').textContent=String(deliveries.filter(a=>!duplicateIds.has(a.invoice_id)).length);
  $('itemCount').textContent=String(invoiceItems.filter(i=>!duplicateIds.has(i.invoice_id)).length);
+ $('matchSummary').textContent=duplicateIds.size?'זוהו '+duplicateIds.size+' עותקים כפולים. הם נשארים ברשימה אך אינם נכללים בחישובי העלות.':'לא זוהו כפילויות במסמכים המזוהים.';
  $('costNote').textContent='סיכום זמני של שורות מזוהות בתעודות משלוח: '+priced+' שורות עם מחיר'+(missing?' · '+missing+' שורות ללא מחיר מלא':'')+'. כפילויות שלא נספרו: '+deliveries.filter(a=>duplicateIds.has(a.invoice_id)).length+'. התאמות שמורות: '+documentMatches.length+'. לא כולל מע״מ שלא זוהה ולא מהווה עדיין דוח פוד־קוסט סופי. סכומים יכולים להשתנות לאחר תיקון הזיהוי.';
 }
 function validateFile(file){if(!file)return;if(file.size>MAX_FILE_SIZE)throw Error('הקובץ גדול מ־10MB');if(!ALLOWED_TYPES.has(file.type))throw Error('ניתן להעלות PDF, JPG, PNG או WEBP בלבד')}
@@ -366,6 +371,11 @@ function showAnalysis(result,invoice){
 }
 async function persistAnalysis(approve,button){
  if(!lastInvoice||!lastAnalysis)return;
+ if(approve){
+  if(!['invoice','tax_invoice','receipt','tax_invoice_receipt'].includes(lastAnalysis.document_type)){msg('appMsg','לא ניתן לאשר תעודת משלוח כסכום חשבונית.');return;}
+  try{const matches=await findDocumentDuplicates(lastAnalysis,lastInvoice.id);if(matches.length){msg('appMsg','המסמך כבר קיים במערכת. אישור נוסף נחסם כדי למנוע כפילות.');await updateDuplicateReview();return;}}
+  catch(e){msg('appMsg','לא ניתן לוודא שאין כפילות ולכן האישור נחסם: '+e.message);return;}
+ }
  button.disabled=true;const old=button.textContent;button.textContent='שומר...';
  try{const result=await api('/rest/v1/rpc/save_invoice_analysis',{method:'POST',body:{p_invoice_id:lastInvoice.id,p_extracted:lastAnalysis,p_approve:approve}});
  $('reviewState').textContent=(approve?'החשבונית אושרה והסכומים עודכנו. ':'הנתונים נשמרו כטיוטה. ')+'נשמרו '+result.items_saved+' שורות.';
@@ -407,6 +417,8 @@ async function saveInvoice(e){
  e.preventDefault();$('saveBtn').disabled=true;msg('appMsg','');
  let uploadedPath='';
  try{
+  const existing=await checkManualDuplicate($('supplier').value.trim(),$('invoiceNumber').value.trim());
+  if(existing.length)throw Error('חשבונית מאותו ספק עם אותו מספר כבר קיימת במערכת. לא נשמר עותק נוסף.');
   const file=$('invoiceFile').files[0];if(file){validateFile(file);msg('appMsg','מעלה את הקובץ...');uploadedPath=await uploadInvoiceFile(file)}
   msg('appMsg','שומר חשבונית...');
   await api('/rest/v1/invoices',{method:'POST',body:{business_id:businessId,supplier_name:$('supplier').value.trim(),invoice_number:$('invoiceNumber').value.trim(),amount:Number($('amount').value),invoice_date:$('invoiceDate').value,status:$('status').value,file_path:uploadedPath||null}});
