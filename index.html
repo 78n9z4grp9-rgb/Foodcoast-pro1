@@ -96,13 +96,13 @@ async function loadCostData(){
   const id=encodeURIComponent(businessId);
   const [a,items]=await Promise.all([
    api('/rest/v1/invoice_analysis?select=invoice_id,extracted,document_type,reviewed&business_id=eq.'+id+'&limit=1000'),
-   api('/rest/v1/invoice_items?select=invoice_id,description,quantity,unit_price,line_total&business_id=eq.'+id+'&limit=10000')
+   api('/rest/v1/invoice_items?select=invoice_id,description,sku,quantity,unit_price,line_total&business_id=eq.'+id+'&limit=10000').catch(async e=>{if(/sku|column/i.test(e.message))return api('/rest/v1/invoice_items?select=invoice_id,description,quantity,unit_price,line_total&business_id=eq.'+id+'&limit=10000');throw e})
   ]);
   analyses=Array.isArray(a)?a:[];invoiceItems=Array.isArray(items)?items:[];
   try{documentMatches=await api('/rest/v1/invoice_document_matches?select=delivery_invoice_id,financial_invoice_id&business_id=eq.'+id+'&limit=1000');matchingEnabled=true}
   catch(e){documentMatches=[];matchingEnabled=false}
   renderCosts();renderSupplierDashboard();
- }catch(e){$('costNote').textContent='לא ניתן לטעון את נתוני המוצרים: '+e.message+' — ודא שהטבלאות invoice_analysis ו־invoice_items קיימות ושהמשתמש מורשה לקרוא אותן.'}
+ }catch(e){analyses=[];invoiceItems=[];renderSupplierDashboard();$('costNote').textContent='לא ניתן לטעון את נתוני המוצרים: '+e.message+' — ודא שהטבלאות invoice_analysis ו־invoice_items קיימות ושהמשתמש מורשה לקרוא אותן.'}
 }
 function renderSupplierDashboard(){
  const sel=$('dashSupplier');if(!sel)return;
