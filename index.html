@@ -41,6 +41,7 @@ let token='',businessId='',invoices=[],userEmail='';
 let documentMatches=[];let matchingEnabled=true;
 let lastAnalysis=null,lastInvoice=null;
 let analyses=[],invoiceItems=[],monthlySales=[];
+let duplicateForReview=null;
 const $=id=>document.getElementById(id);
 const money=n=>new Intl.NumberFormat('he-IL',{style:'currency',currency:'ILS'}).format(Number(n)||0);
 function msg(id,text,ok=false){$(id).replaceChildren();if(text){const d=document.createElement('div');d.className='message'+(ok?' ok':'');d.textContent=text;$(id).append(d)}}
@@ -50,7 +51,7 @@ async function request(path,{method='GET',body,auth=true,headers={}}={}){
  if(!response.ok){const detail=typeof data==='object'&&data?(data.message||data.error_description||data.error||data.msg):null;throw Error(detail||'HTTP '+response.status)}
  return data;
 }
-async function api(path,{method='GET',body,auth=true}={}){return request(path,{method,auth,headers:{'Content-Type':'application/json',...(method==='POST'?{Prefer:'return=representation'}:{})},body:body===undefined?undefined:JSON.stringify(body)})}
+async function api(path,{method='GET',body,auth=true,headers={}}={}){return request(path,{method,auth,headers:{'Content-Type':'application/json',...(method==='POST'?{Prefer:'return=representation'}:{}),...headers},body:body===undefined?undefined:JSON.stringify(body)})}
 async function signIn(e){e.preventDefault();$('loginBtn').disabled=true;msg('loginMsg','');try{
  const data=await api('/auth/v1/token?grant_type=password',{method:'POST',body:{email:$('email').value.trim(),password:$('password').value},auth:false});
  token=data.access_token;userEmail=data.user?.email||$('email').value;
@@ -158,6 +159,45 @@ for(const name of names){const docs=valid.filter(i=>financeSupplier(i,aMap)===na
 if(!names.length){const tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=6;td.textContent='עדיין אין ספקים מזוהים';tr.append(td);body.append(tr)}const sales=monthlySales.find(x=>String(x.month).slice(0,7)===key);const rev=sales?Number(sales.sales_ex_vat):null;$('monthlyRevenue').value=sales?String(sales.sales_ex_vat):'';$('fcRevenue').textContent=rev===null?'לא הוזן':money(rev);const purchases=valid.filter(i=>financialMonth(i,aMap)===key).reduce((sum,i)=>sum+Number(i.amount),0);$('fcPurchases').textContent=money(purchases);$('fcPercent').textContent=rev===null?'יש להזין מכירות':rev===0?'לא ניתן לחשב':(purchases/rev*100).toFixed(1)+'%';$('financeDue').textContent=money(payable)}
 async function saveMonthlyRevenue(){const button=$('saveMonthlyRevenue'),month=$('financeMonth').value,raw=$('monthlyRevenue').value;if(!/^\d{4}-\d{2}$/.test(month)){msg('appMsg','בחר חודש תקין');return}if(raw.trim()===''||!Number.isFinite(Number(raw))||Number(raw)<0){msg('appMsg','יש להזין סכום מכירות תקין, כולל אפס אם לא היו מכירות');return}button.disabled=true;try{await api('/rest/v1/monthly_sales?on_conflict=business_id,month',{method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=representation'},body:{business_id:businessId,month:month+'-01',sales_ex_vat:Number(raw)}});await loadMonthlySales();renderMonthlyFinance();msg('appMsg','המכירות החודשיות נשמרו בהצלחה',true)}catch(e){msg('appMsg','שמירת מכירות נכשלה: '+e.message+' — ודא שהרצת את קובץ SQL')}finally{button.disabled=false}}
 
+// Document identity is scoped to the logged-in business. Never merge a delivery note with an invoice.
+function normalizeDocumentNumber(v){return String(v??'').normalize('NFKC').replace(/[\s\-–—./\\]/g,'').toLowerCase().trim()}
+function documentIdentity(ex,inv){
+ const supplier=normalizeSupplier(ex?.supplier_name||inv?.supplier_name);
+ const number=normalizeDocumentNumber(ex?.document_number||inv?.invoice_number);
+ const type=String(ex?.document_type||'').trim().toLowerCase();
+ // A provisional upload number is not a real document number.
+ if(!supplier||supplier==='ממתין לזיהוי'||!number||number.startsWith('לבדיקה')||!type||type==='other'||type==='unknown')return null;
+ return {supplier,number,type};
+}
+async function findDocumentDuplicates(ex,invoiceId){
+ const identity=documentIdentity(ex,{});if(!identity)return [];
+ // Query live data instead of trusting the dashboard's cached 1000-row list.
+ const rows=await api('/rest/v1/invoice_analysis?select=invoice_id,extracted,document_type&business_id=eq.'+encodeURIComponent(businessId)+'&limit=10000');
+ const matches=[];
+ for(const row of rows){
+  if(row.invoice_id===invoiceId)continue;
+  const found=documentIdentity({...row.extracted,document_type:row.document_type||row.extracted?.document_type},{});
+  if(found&&found.supplier===identity.supplier&&found.number===identity.number&&found.type===identity.type)matches.push(row.invoice_id);
+ }
+ return matches;
+}
+async function checkManualDuplicate(supplier,number){
+ const normalizedSupplier=normalizeSupplier(supplier),normalizedNumber=normalizeDocumentNumber(number);
+ if(!normalizedSupplier||!normalizedNumber)throw Error('יש להזין ספק ומספר חשבונית');
+ const existing=await api('/rest/v1/invoices?select=id,supplier_name,invoice_number&business_id=eq.'+encodeURIComponent(businessId)+'&limit=10000');
+ return existing.filter(i=>normalizeSupplier(i.supplier_name)===normalizedSupplier&&normalizeDocumentNumber(i.invoice_number)===normalizedNumber);
+}
+async function updateDuplicateReview(){
+ duplicateForReview=null;
+ const warning=$('duplicateReview');if(!warning||!lastAnalysis||!lastInvoice)return;
+ warning.textContent='בודק אם המסמך כבר נקלט...';
+ try{
+  const duplicates=await findDocumentDuplicates(lastAnalysis,lastInvoice.id);
+  duplicateForReview=duplicates.length?duplicates:null;
+  warning.textContent=duplicates.length?'⚠️ כפילות זוהתה: אותו ספק, מספר מסמך וסוג מסמך כבר קיימים בעסק ('+duplicates.length+' עותקים). אין לאשר שוב. המסמך החדש נשאר כטיוטה לבדיקה.':'לא נמצאה כפילות לפי פרטי המסמך שזוהו.';
+  warning.className=duplicates.length?'result-warning':'result-note';
+ }catch(e){duplicateForReview='unverified';warning.className='result-warning';warning.textContent='לא ניתן לבדוק כפילויות כרגע: '+e.message+'. אישור חסום עד להשלמת הבדיקה.'}
+}
 function normalizeSupplier(v){return String(v||'').toLowerCase().replace(/["׳״'`.,()\-]/g,' ').replace(/\b(בעמ|בע מ|ltd|limited)\b/g,' ').replace(/\s+/g,' ').trim()}
 function matchScore(delivery,financial){
  const d=delivery.extracted||{},f=financial.extracted||{};
@@ -265,7 +305,7 @@ function showAnalysis(result,invoice){
  section.append(grid);
  const review=document.createElement('div');review.className='grid';
  const reviewFields=[['supplier_name','שם ספק','text'],['document_number','מספר מסמך','text'],['document_date','תאריך','date'],['total_amount','סכום כולל','number']];
- for(const [key,label,type] of reviewFields){const box=document.createElement('div');const lab=document.createElement('label');lab.textContent=label;const inp=document.createElement('input');inp.type=type;inp.className='review-input';if(type==='number'){inp.step='0.01';inp.min='0'}inp.value=data[key]??'';inp.addEventListener('input',()=>{lastAnalysis[key]=inp.value===''?null:(type==='number'?Number(inp.value):inp.value)});box.append(lab,inp);review.append(box)}section.append(review);
+ for(const [key,label,type] of reviewFields){const box=document.createElement('div');const lab=document.createElement('label');lab.textContent=label;const inp=document.createElement('input');inp.type=type;inp.className='review-input';if(type==='number'){inp.step='0.01';inp.min='0'}inp.value=data[key]??'';inp.addEventListener('input',()=>{lastAnalysis[key]=inp.value===''?null:(type==='number'?Number(inp.value):inp.value);if(['supplier_name','document_number'].includes(key))void updateDuplicateReview()});box.append(lab,inp);review.append(box)}section.append(review);
  const items=Array.isArray(data.items)?data.items:[];
  const heading=document.createElement('h3');heading.textContent='מוצרים שזוהו ('+items.length+')';section.append(heading);
  if(items.length){const wrap=document.createElement('div');wrap.className='result-wrap';const table=document.createElement('table');const head=document.createElement('thead');const tr=document.createElement('tr');for(const label of ['מוצר','מק״ט','כמות','מחיר יחידה','סה״כ שורה']){const th=document.createElement('th');th.textContent=label;tr.append(th)}head.append(tr);table.append(head);const body=document.createElement('tbody');let calculated=0,complete=0;
