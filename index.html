@@ -377,8 +377,18 @@ function normalizeInvoiceDate(value){
  const dt=new Date(Date.UTC(y,m-1,d));
  if(dt.getUTCFullYear()!==y||dt.getUTCMonth()!==m-1||dt.getUTCDate()!==d)return {value:'',warning:'תאריך לא תקין: '+raw+'. יש לתקן ידנית.'};
  const iso=String(y).padStart(4,'0')+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0');
- // OCR sometimes transforms 10/11/26 into 2010-11-26; an old year needs explicit review.
- if(y<2020||y>new Date().getFullYear()+1)return {value:iso,warning:'שנת החשבונית ('+y+') חריגה. יש לבדוק מול המסמך ולתקן לפני אישור.'};
+ // A short DD-MM-YY date can be misread by OCR as 20DD-MM-YY.
+ // Never auto-change a valid ISO date: suggest a correction and require human review.
+ const currentYear=new Date().getFullYear();
+ if(y>=2001&&y<=2031&&y<currentYear-5){
+  const candidateYear=2000+d,candidateDay=y-2000;
+  const candidate=new Date(Date.UTC(candidateYear,m-1,candidateDay));
+  if(candidateYear>=currentYear-2&&candidateYear<=currentYear+1&&candidateDay>=1&&candidateDay<=31&&candidate.getUTCFullYear()===candidateYear&&candidate.getUTCMonth()===m-1&&candidate.getUTCDate()===candidateDay){
+   const suggested=String(candidateYear)+'-'+String(m).padStart(2,'0')+'-'+String(candidateDay).padStart(2,'0');
+   return {value:iso,warning:'תאריך חריג: '+iso+'. ייתכן שהתאריך המקורי הוא '+suggested+'. בדוק מול המסמך ובחר ידנית את התאריך הנכון לפני אישור.'};
+  }
+ }
+ if(y<2020||y>currentYear+1)return {value:iso,warning:'שנת החשבונית ('+y+') חריגה. יש לבדוק מול המסמך ולתקן לפני אישור.'};
  return {value:iso,warning:''};
 }
 function showAnalysis(result,invoice){
