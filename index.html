@@ -205,7 +205,8 @@ function duplicateDocumentIds(){
   if(identity)records.push({inv,a,identity});
  }
  // Keep the best copy: approved, valid date, and meaningful amount.
- const score=r=>(r.a?.reviewed===true?8:!r.a?4:0)+
+ const score=r=>(financialInvoice(r.inv,byAnalysis)?100:0)+
+  (r.a?.reviewed===true?20:!r.a?10:0)+
   (/^20\d{2}-\d{2}-\d{2}$/.test(String(r.inv.invoice_date||''))?4:0)+
   (Number(r.inv.amount)>0?2:0);
  records.sort((x,y)=>score(y)-score(x)||String(x.inv.created_at||'').localeCompare(String(y.inv.created_at||''))||String(x.inv.id).localeCompare(String(y.inv.id)));
