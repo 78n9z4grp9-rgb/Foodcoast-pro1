@@ -1,0 +1,495 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>מערכת ניהול חשבוניות</title>
+<style>
+:root{font-family:Arial,sans-serif;color:#172c43;background:#f3f6fa}*{box-sizing:border-box}body{margin:0}header{background:#172c43;color:white;padding:22px 5%;display:flex;justify-content:space-between;align-items:center}h1{font-size:24px;margin:0}header small{display:block;margin-top:7px}main{max-width:1100px;margin:35px auto;padding:0 16px}.panel{background:white;border-radius:16px;padding:25px;margin-bottom:18px;box-shadow:0 3px 15px #152c4310}.login{max-width:520px;margin:50px auto}label{display:block;margin:12px 0 5px;font-weight:bold;font-size:14px}input,select,button{font:inherit;padding:12px;border-radius:9px;border:1px solid #cbd5e1}input,select{width:100%;background:white}button{background:#1968ac;color:white;border:0;cursor:pointer;font-weight:bold}button:hover{filter:brightness(.95)}button:disabled{opacity:.6;cursor:wait}.result-title{margin:0 0 14px}.result-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:14px 0}.result-cell{background:#f3f7fc;padding:13px;border-radius:10px;overflow-wrap:anywhere}.result-cell small{display:block;color:#5e7085;margin-bottom:6px}.result-cell b{font-size:16px}.result-wrap{overflow-x:auto}.result-warning{padding:12px;border-radius:9px;background:#fff4dd;color:#76521c;margin:12px 0}.result-note{font-size:13px;color:#53667b}.auto-panel{background:#eef7ff;border:1px solid #d3e6fa;border-radius:12px;padding:16px;margin-bottom:20px}.auto-panel h3{margin-top:0}.auto-panel input{max-width:600px}.review-input{padding:7px;min-width:100px}.review-actions{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0}.review-actions button{flex:0 0 auto}.review-note{color:#805500;background:#fff6df;padding:12px;border-radius:8px}@media(max-width:650px){.result-grid{grid-template-columns:1fr 1fr}}.secondary{background:#e7eef5;color:#18364d}.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.row>*{flex:1}.row button{flex:0 0 auto}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.stat{background:#eaf3fd;padding:20px;border-radius:13px;text-align:center}.stat b{font-size:24px;display:block;margin-top:8px}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}.message{padding:12px;border-radius:9px;margin:14px 0;background:#fff0f0;color:#a32b2b;white-space:pre-wrap}.ok{background:#e8f8ed;color:#156a36}.muted{color:#617286;font-size:13px}table{width:100%;border-collapse:collapse}th,td{padding:12px;text-align:right;border-bottom:1px solid #e4eaf1}th{background:#f5f8fb}.scroll{overflow-x:auto}#app{display:none}.file-button{padding:8px 12px;font-size:13px;white-space:nowrap}.empty-file{color:#8a97a7}@media(max-width:650px){.grid,.stats{grid-template-columns:1fr}header{display:block}h1{font-size:21px}}
+.match-hint{font-size:12px;color:#53667b;margin:6px 0}.match-ok{color:#126438;font-weight:bold}.match-pending{color:#8a5b12;font-weight:bold}.match-select{max-width:320px;min-width:220px}.match-actions{display:flex;flex-wrap:wrap;align-items:center;gap:5px}.match-actions button{padding:8px 10px;font-size:12px}.cost-highlight{background:#f4fbff}.dash-controls{display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin:15px 0}.dash-controls>div{flex:1;min-width:160px}.dash-chart{width:100%;height:240px;display:block;background:#fafcff;border:1px solid #e4eaf1;border-radius:12px}.dash-note{font-size:13px;color:#617286}.dash-up{color:#a12d2d;font-weight:bold}.dash-down{color:#16754a;font-weight:bold}.dash-table{overflow-x:auto}.dash-table table{min-width:600px}
+.mini-trend{width:110px;height:32px;vertical-align:middle}.fc-status{font-size:12px;color:#617286;margin-top:8px}.fc-panel{border:1px solid #d7e5f3;border-radius:12px;padding:15px;background:#f9fcff}.fc-panel .grid{align-items:end}.fc-kpis{margin-top:15px}.fc-panel input{max-width:100%}.price-alerts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:12px 0}.price-alerts .stat{padding:13px}.price-controls{display:flex;gap:12px;align-items:end;flex-wrap:wrap}.price-controls>div{flex:1;min-width:160px}.price-controls label{margin-top:0}@media(max-width:650px){.price-alerts{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header><div><h1>מערכת ניהול חשבוניות</h1><small>ניהול ספקים, תשלומים והוצאות</small></div><div id="identity"></div></header>
+<main>
+<section id="login" class="panel login"><h2>כניסה למערכת</h2><form id="loginForm"><label for="email">אימייל</label><input type="email" id="email" required autocomplete="username"><label for="password">סיסמה</label><input type="password" id="password" required autocomplete="current-password"><p><button id="loginBtn" type="submit" style="width:100%">התחבר</button></p></form><div id="loginMsg"></div></section>
+<section id="app">
+<div class="row" style="margin-bottom:18px"><h2 id="businessTitle">חשבוניות</h2><button class="secondary" id="logout">התנתק</button></div>
+<div class="stats"><div class="stat">סך חשבוניות<b id="total">0</b></div><div class="stat">סך סכומים<b id="sum">₪0</b></div><div class="stat">יתרה לתשלום<b id="unpaid">₪0</b></div></div>
+<section class="panel" id="supplierDashboard"><h2>דוח ספקים ומגמות מחירים</h2><p class="muted">כל הספקים שזוהו במסמכים שהועלו, כולל תמונות ותעודות משלוח. רכישות חשבוניות ועלות תעודות משלוח מוצגות בנפרד למניעת ספירה כפולה.</p><div class="dash-controls"><div><label for="dashSupplier">ספק</label><select id="dashSupplier"><option value="">כל הספקים</option></select></div><div><label for="dashMonths">תקופה</label><select id="dashMonths"><option value="6">6 חודשים</option><option value="12">12 חודשים</option><option value="3">3 חודשים</option></select></div></div><div class="stats"><div class="stat">רכישות בתקופה<b id="dashTotal">₪0</b></div><div class="stat">ספקים בתקופה<b id="dashCount">0</b></div><div class="stat">שינוי מהחודש הקודם<b id="dashChange">—</b></div></div><h3>מגמת רכישות חודשית</h3><svg id="dashChart" class="dash-chart" viewBox="0 0 900 240" role="img" aria-label="גרף רכישות חודשיות"></svg><p class="dash-note" id="dashChartNote"></p><h3>טבלת ספקים</h3><div class="dash-table"><table><thead><tr><th>ספק</th><th>רכישות בתקופה</th><th>חודש נוכחי</th><th>חודש קודם</th><th>שינוי</th><th>מסמכים</th><th>עלות תעודות משלוח (בנפרד)</th></tr></thead><tbody id="dashRows"></tbody></table></div><h3>בקרת התייקרויות ומחירי מוצרים</h3><p class="dash-note">התראות לפי השוואת מחירי יחידה בשני מסמכים מאושרים אחרונים של אותו מוצר אצל אותו ספק. לא מחשבים חיסכון חודשי ללא נתוני צריכה אמיתיים.</p><div class="price-alerts"><div class="stat">מוצרים שהתייקרו<b id="priceRises">0</b></div><div class="stat">מוצרים שהוזלו<b id="priceFalls">0</b></div><div class="stat">התייקרות לפי כמויות במסמך האחרון<b id="priceImpact">₪0</b></div></div><div class="price-controls"><div><label for="priceFilter">הצג</label><select id="priceFilter"><option value="all">כל שינויי המחירים</option><option value="up">התייקרויות בלבד</option><option value="down">הוזלות בלבד</option></select></div><div><label for="priceSearch">חיפוש מוצר או מק״ט</label><input id="priceSearch" placeholder="שם מוצר או מק״ט"></div></div><div class="dash-table"><table><thead><tr><th>ספק</th><th>מוצר / מק״ט</th><th>מחיר קודם</th><th>מחיר אחרון</th><th>שינוי</th><th>כמות במסמך האחרון</th><th>השפעה לפי כמות זו</th><th>תאריך אחרון</th></tr></thead><tbody id="dashPrices"></tbody></table></div><p class="dash-note" id="priceNote"></p><p id="dashStatus" class="dash-note"></p></section>
+<section class="panel" id="monthlyFinance"><h2>תשלומים לספקים ופוד־קוסט חודשי</h2><p class="muted">הסכום לתשלום מחושב מחשבוניות שלא שולמו, לפי חודש החשבונית. תעודות משלוח מוצגות בדוח הספקים אך אינן יוצרות חוב נוסף.</p><div class="dash-controls"><div><label for="financeMonth">חודש לדוח</label><input id="financeMonth" type="month"></div></div><h3>ספקים — חובות ומגמות</h3><p><b>סה״כ לתשלום בחודש: <span id="financeDue">₪0</span></b></p><div class="dash-table"><table><thead><tr><th>ספק</th><th>לתשלום בחודש</th><th>חשבוניות בחודש</th><th>חודש קודם (כל החשבוניות)</th><th>שינוי ברכישות</th><th>מגמה 6 חודשים</th></tr></thead><tbody id="financeSuppliers"></tbody></table></div><p class="dash-note">הגרף הקטן מציג סכומי חשבוניות בכל חודש, גם אם שולמו. תשלומים שטרם שולמו מחושבים בנפרד. מסמכים שטרם אושרו אינם נכללים.</p><div class="fc-panel"><h3>הזנת מכירות חודשיות — ללא מע״מ</h3><div class="grid"><div><label for="monthlyRevenue">מכירות החודש (₪)</label><input id="monthlyRevenue" type="number" min="0" step="0.01" placeholder="לדוגמה: 120000"></div><div><button id="saveMonthlyRevenue" type="button">שמור מכירות חודשיות</button></div></div><p class="fc-status" id="revenueStatus"></p><div class="stats fc-kpis"><div class="stat">מכירות ללא מע״מ<b id="fcRevenue">—</b></div><div class="stat">רכישות מזון וניקיון (מדד משוער)<b id="fcPurchases">—</b></div><div class="stat">יחס רכישות מזון וניקיון למכירות<b id="fcPercent">—</b></div></div><p class="muted">זהו מדד משוער לרכישות מזון וניקיון ביחד ביחס למכירות ללא מע״מ. כרגע הוא כולל את כלל החשבוניות הכספיות המאושרות, ללא תעודות משלוח ועותקים כפולים, ולכן עשוי לכלול גם הוצאות אחרות. פוד־קוסט מדויק דורש סיווג פריטים, מלאי פתיחה וסגירה וחשבוניות מלאות.</p></div></section>
+<section class="panel" id="costPanel"><h2>עלות סחורה ומסמכים</h2><div class="stats"><div class="stat">עלות מתעודות משלוח<b id="deliveryCost">₪0</b></div><div class="stat">תעודות משלוח שנותחו<b id="deliveryCount">0</b></div><div class="stat">מוצרים שנקלטו<b id="itemCount">0</b></div></div><p id="matchSummary" class="muted" aria-live="polite"></p><p class="muted" id="costNote">טוען נתוני סחורה...</p><div class="scroll"><table><thead><tr><th>מסמך</th><th>ספק שזוהה</th><th>תאריך</th><th>מוצרים</th><th>עלות שורות</th><th>מצב</th><th>התאמה לחשבונית</th></tr></thead><tbody id="costRows"></tbody></table></div><p class="review-note">עלות הסחורה מתעודות משלוח מוצגת בנפרד מחובות לספקים. אין לחבר את שני הסכומים: אותה סחורה עלולה להופיע בהמשך גם בחשבונית. ניתן לקשר תעודת משלוח לחשבונית לאחר בדיקה. הקישור אינו משנה חיובים או סכומי עלות.</p></section>
+<div id="appMsg" role="status" aria-live="polite"></div>
+<section class="panel"><h2>קליטת חשבונית</h2><div class="auto-panel"><h3>העלאה חכמה — פשוט מעלים תמונה או PDF</h3><p>המערכת תשמור את הקובץ ותנסה לזהות אוטומטית ספק, תאריך, פריטים, כמויות ומחירים. נתונים שלא זוהו יישארו לבדיקה.</p><label for="quickFile">בחר תמונה או PDF</label><input id="quickFile" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp"><p><button type="button" id="quickBtn">העלה ונתח אוטומטית</button></p><p class="muted">עד 10MB. יש לבדוק את הנתונים לפני אישור חשבונאי. הקליטה הידנית זמינה בהמשך.</p></div><h3>קליטה ידנית (לפי הצורך)</h3><form id="invoiceForm"><div class="grid">
+<div><label for="supplier">שם ספק</label><input id="supplier" required></div>
+<div><label for="invoiceNumber">מספר חשבונית</label><input id="invoiceNumber" required></div>
+<div><label for="amount">סכום בשקלים</label><input id="amount" type="number" min="0" step="0.01" required></div>
+<div><label for="invoiceDate">תאריך</label><input id="invoiceDate" type="date" required></div>
+<div><label for="status">סטטוס</label><select id="status"><option value="unpaid">לא שולם</option><option value="paid">שולם</option></select></div>
+<div><label for="invoiceFile">קובץ חשבונית (PDF או תמונה)</label><input id="invoiceFile" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp"><div class="muted">עד 10MB. ניתן לשמור חשבונית גם בלי קובץ.</div></div>
+</div><p><button type="submit" id="saveBtn">שמור חשבונית</button></p></form><p class="muted">הקבצים נשמרים באחסון פרטי של העסק ב־Supabase.</p></section>
+<section class="panel"><h2>רשימת חשבוניות</h2><input id="search" placeholder="חיפוש לפי ספק או מספר חשבונית"><div class="scroll"><table><thead><tr><th>ספק</th><th>מספר</th><th>סכום</th><th>תאריך</th><th>סטטוס</th><th>קובץ</th><th>ניתוח AI</th></tr></thead><tbody id="rows"></tbody></table></div></section>
+</section></main>
+<script>
+// Public Supabase configuration only. Never add a service_role or secret key.
+const BASE='https://zblsihcenybvwbgatkjs.supabase.co';
+const KEY='sb_publishable_N0yKwMOvgDVGhm81deH4VA_pC0uKFcx';
+const BUCKET='invoice-files';
+const MAX_FILE_SIZE=10*1024*1024;
+const ALLOWED_TYPES=new Set(['application/pdf','image/jpeg','image/png','image/webp']);
+let token='',businessId='',invoices=[],userEmail='';
+let documentMatches=[];let matchingEnabled=true;
+let lastAnalysis=null,lastInvoice=null;
+let analyses=[],invoiceItems=[],monthlySales=[];
+let duplicateForReview='unverified';
+let duplicateCheckSequence=0;
+const $=id=>document.getElementById(id);
+const money=n=>new Intl.NumberFormat('he-IL',{style:'currency',currency:'ILS'}).format(Number(n)||0);
+function msg(id,text,ok=false){$(id).replaceChildren();if(text){const d=document.createElement('div');d.className='message'+(ok?' ok':'');d.textContent=text;$(id).append(d)}}
+async function request(path,{method='GET',body,auth=true,headers={}}={}){
+ const response=await fetch(BASE+path,{method,headers:{apikey:KEY,...(auth&&token?{Authorization:'Bearer '+token}:{}),...headers},body});
+ const raw=await response.text();let data;try{data=raw?JSON.parse(raw):null}catch{data=raw}
+ if(!response.ok){const detail=typeof data==='object'&&data?(data.message||data.error_description||data.error||data.msg):null;throw Error(detail||'HTTP '+response.status)}
+ return data;
+}
+async function api(path,{method='GET',body,auth=true,headers={}}={}){return request(path,{method,auth,headers:{'Content-Type':'application/json',...(method==='POST'?{Prefer:'return=representation'}:{}),...headers},body:body===undefined?undefined:JSON.stringify(body)})}
+async function signIn(e){e.preventDefault();$('loginBtn').disabled=true;msg('loginMsg','');try{
+ const data=await api('/auth/v1/token?grant_type=password',{method:'POST',body:{email:$('email').value.trim(),password:$('password').value},auth:false});
+ token=data.access_token;userEmail=data.user?.email||$('email').value;
+ await loadBusiness(data.user.id);$('login').style.display='none';$('app').style.display='block';$('identity').textContent=userEmail;await refresh();
+ }catch(err){token='';businessId='';msg('loginMsg',err.message)}finally{$('loginBtn').disabled=false}}
+async function loadBusiness(uid){
+ const memberships=await api('/rest/v1/business_users?select=business_id,role&user_id=eq.'+encodeURIComponent(uid)+'&limit=1');
+ if(!memberships.length)throw Error('המשתמש אינו משויך לעסק בטבלת business_users');
+ businessId=memberships[0].business_id;
+ const businesses=await api('/rest/v1/businesses?select=id,name&id=eq.'+encodeURIComponent(businessId)+'&limit=1');
+ if(!businesses.length)throw Error('לא נמצאה הרשאת צפייה בעסק. יש לבדוק RLS של businesses');
+ $('businessTitle').textContent='חשבוניות — '+businesses[0].name;
+}
+async function refresh(){try{
+ invoices=await api('/rest/v1/invoices?select=*&business_id=eq.'+encodeURIComponent(businessId)+'&order=created_at.desc&limit=1000');render();await loadCostData();await loadMonthlySales();renderSupplierDashboard();renderMonthlyFinance();
+ }catch(e){msg('appMsg','טעינת חשבוניות נכשלה: '+e.message)}}
+function field(obj,keys){for(const k of keys)if(obj[k]!==undefined&&obj[k]!==null)return obj[k];return ''}
+function render(){
+ const q=$('search').value.toLowerCase();
+ const filtered=invoices.filter(x=>String(field(x,['supplier_name','supplier','supplier_id'])).toLowerCase().includes(q)||String(field(x,['invoice_number','number'])).toLowerCase().includes(q));
+ const duplicateIds=duplicateDocumentIds();
+ const analysisMap=new Map(analyses.map(a=>[a.invoice_id,a]));
+ const financial=invoices.filter(x=>!duplicateIds.has(x.id)&&financialInvoice(x,analysisMap));
+ $('total').textContent=financial.length;
+ $('sum').textContent=money(financial.reduce((s,x)=>s+Number(field(x,['amount','total_amount','total'])||0),0));
+ $('unpaid').textContent=money(financial.filter(x=>!['paid','שולם'].includes(String(x.status).toLowerCase())).reduce((s,x)=>s+Number(field(x,['amount','total_amount','total'])||0),0));
+ $('rows').replaceChildren();
+ if(!filtered.length){const tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=7;td.textContent='אין חשבוניות להצגה';tr.append(td);$('rows').append(tr)}
+ for(const x of filtered){
+  const tr=document.createElement('tr');
+  for(const value of [field(x,['supplier_name','supplier','supplier_id']),field(x,['invoice_number','number']),money(field(x,['amount','total_amount','total'])),field(x,['invoice_date','date','created_at']),['paid','שולם'].includes(String(x.status).toLowerCase())?'שולם':'לא שולם']){
+   const td=document.createElement('td');td.textContent=value;tr.append(td);
+  }
+  const td=document.createElement('td');
+  if(x.file_path){const button=document.createElement('button');button.type='button';button.className='secondary file-button';button.textContent='פתח קובץ';button.addEventListener('click',()=>openInvoiceFile(x.file_path,button));td.append(button)}
+  else{const span=document.createElement('span');span.className='empty-file';span.textContent='ללא קובץ';td.append(span)}
+  tr.append(td);
+  const aiTd=document.createElement('td');
+  if(x.file_path){
+   const aiButton=document.createElement('button');aiButton.type='button';aiButton.className='file-button';aiButton.textContent='נתח באמצעות AI';
+   aiButton.addEventListener('click',()=>analyzeInvoice(x,aiButton));aiTd.append(aiButton);
+  }else{aiTd.textContent='נדרש קובץ';aiTd.className='muted'}
+  tr.append(aiTd);$('rows').append(tr);
+ }
+}
+async function loadCostData(){
+ try{
+  const id=encodeURIComponent(businessId);
+  const [a,items]=await Promise.all([
+   api('/rest/v1/invoice_analysis?select=invoice_id,extracted,document_type,reviewed&business_id=eq.'+id+'&limit=1000'),
+   api('/rest/v1/invoice_items?select=invoice_id,description,sku,quantity,unit_price,line_total&business_id=eq.'+id+'&limit=10000').catch(async e=>{if(/sku|column/i.test(e.message))return api('/rest/v1/invoice_items?select=invoice_id,description,quantity,unit_price,line_total&business_id=eq.'+id+'&limit=10000');throw e})
+  ]);
+  analyses=Array.isArray(a)?a:[];invoiceItems=Array.isArray(items)?items:[];render();
+  try{documentMatches=await api('/rest/v1/invoice_document_matches?select=delivery_invoice_id,financial_invoice_id&business_id=eq.'+id+'&limit=1000');matchingEnabled=true}
+  catch(e){documentMatches=[];matchingEnabled=false}
+  renderCosts();renderSupplierDashboard();renderMonthlyFinance();
+ }catch(e){analyses=[];invoiceItems=[];renderSupplierDashboard();renderMonthlyFinance();$('costNote').textContent='לא ניתן לטעון את נתוני המוצרים: '+e.message+' — ודא שהטבלאות invoice_analysis ו־invoice_items קיימות ושהמשתמש מורשה לקרוא אותן.'}
+}
+function renderSupplierDashboard(){
+ const sel=$('dashSupplier');if(!sel)return;
+ const monthCount=Number($('dashMonths').value)||6;
+ const analysisById=new Map(analyses.map(a=>[a.invoice_id,a]));
+ // Supplier directory includes uploaded photos/PDFs, even delivery notes and drafts.
+ const supplierOf=inv=>{const a=analysisById.get(inv.id),ex=a?.extracted||{};const detected=String(ex.supplier_name||'').trim(),stored=String(inv.supplier_name||'').trim();return detected&&detected!=='ממתין לזיהוי'?detected:stored==='ממתין לזיהוי'?'':stored};
+ const duplicates=duplicateDocumentIds();
+  const validDocs=invoices.filter(i=>!duplicates.has(i.id)&&supplierOf(i)&&/^\d{4}-\d{2}/.test(String(analysisById.get(i.id)?.extracted?.document_date||i.invoice_date||'')));
+ const eligible=validDocs.filter(inv=>{const a=analysisById.get(inv.id);return !a || (a.reviewed===true&&['invoice','tax_invoice','receipt','tax_invoice_receipt'].includes(a.document_type))});
+ const valid=eligible.filter(i=>Number.isFinite(Number(i.amount))&&Number(i.amount)>=0);
+ const suppliers=[...new Set(validDocs.map(supplierOf))].sort((a,b)=>a.localeCompare(b,'he'));
+ const docDate=i=>String(analysisById.get(i.id)?.extracted?.document_date||i.invoice_date||'');
+ const deliveryAmount=i=>{const items=invoiceItems.filter(x=>x.invoice_id===i.id);return items.reduce((sum,item)=>{const val=item.line_total??(item.quantity!=null&&item.unit_price!=null?Number(item.quantity)*Number(item.unit_price):null);return sum+(val!=null&&Number.isFinite(Number(val))?Number(val):0)},0)};
+ const previous=sel.value;sel.replaceChildren();const all=document.createElement('option');all.value='';all.textContent='כל הספקים';sel.append(all);
+ for(const name of suppliers){const opt=document.createElement('option');opt.value=name;opt.textContent=name;sel.append(opt)}sel.value=suppliers.includes(previous)?previous:'';
+ const chosen=sel.value;const now=new Date();const currentKey=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+ const keys=Array.from({length:monthCount},(_,i)=>{const d=new Date(now.getFullYear(),now.getMonth()-(monthCount-1-i),1);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')});
+ const prevDate=new Date(now.getFullYear(),now.getMonth()-1,1);const prevKey=prevDate.getFullYear()+'-'+String(prevDate.getMonth()+1).padStart(2,'0');
+ const scope=valid.filter(i=>!chosen||supplierOf(i)===chosen);
+ const totals=keys.map(k=>scope.filter(i=>i.invoice_date.slice(0,7)===k).reduce((s,i)=>s+Number(i.amount),0));
+ const inPeriod=scope.filter(i=>keys.includes(i.invoice_date.slice(0,7)));
+ $('dashTotal').textContent=money(inPeriod.reduce((s,i)=>s+Number(i.amount),0));$('dashCount').textContent=new Set(inPeriod.map(supplierOf)).size;
+ const cur=scope.filter(i=>i.invoice_date.slice(0,7)===currentKey).reduce((s,i)=>s+Number(i.amount),0), prev=scope.filter(i=>i.invoice_date.slice(0,7)===prevKey).reduce((s,i)=>s+Number(i.amount),0);
+ $('dashChange').textContent=prev>0?((cur-prev)/prev>=0?'+':'')+(((cur-prev)/prev)*100).toFixed(1)+'%':'אין בסיס להשוואה';
+ const svg=$('dashChart');svg.replaceChildren();const NS='http://www.w3.org/2000/svg';const add=(tag,attrs,txt)=>{const el=document.createElementNS(NS,tag);for(const [k,v] of Object.entries(attrs))el.setAttribute(k,String(v));if(txt!==undefined)el.textContent=txt;svg.append(el);return el};
+ const max=Math.max(...totals,1),left=75,right=870,top=22,bottom=196,step=(right-left)/Math.max(keys.length,1),barWidth=Math.min(72,step*.62);
+ for(let j=0;j<=4;j++){const y=bottom-(bottom-top)*j/4;add('line',{x1:left,y1:y,x2:right,y2:y,stroke:'#dce6f1'});add('text',{x:left-9,y:y+4,'text-anchor':'end',fill:'#60758b','font-size':12},Math.round(max*j/4).toLocaleString('he-IL'))}
+ keys.forEach((k,i)=>{const h=totals[i]/max*(bottom-top),x=left+i*step+(step-barWidth)/2;add('rect',{x,y:bottom-h,width:barWidth,height:Math.max(h,0),rx:5,fill:'#1968ac'});add('text',{x:x+barWidth/2,y:bottom+20,'text-anchor':'middle',fill:'#3d5269','font-size':12},k.slice(5)+'/'+k.slice(2,4));if(totals[i])add('text',{x:x+barWidth/2,y:Math.max(top+12,bottom-h-6),'text-anchor':'middle',fill:'#172c43','font-size':12},Math.round(totals[i]).toLocaleString('he-IL'))});
+ $('dashChartNote').textContent='החודש הנוכחי עדיין לא הסתיים. חשבוניות שנותחו אך לא אושרו אינן נכללות; נתוני קליטה ידנית נכללים.';
+ const body=$('dashRows');body.replaceChildren();const names=chosen?[chosen]:suppliers;
+ for(const name of names){const arr=inPeriod.filter(i=>supplierOf(i)===name);const docs=validDocs.filter(i=>supplierOf(i)===name&&keys.includes(docDate(i).slice(0,7)));if(!docs.length)continue;const current=arr.filter(i=>i.invoice_date.slice(0,7)===currentKey).reduce((s,i)=>s+Number(i.amount),0);const prior=arr.filter(i=>i.invoice_date.slice(0,7)===prevKey).reduce((s,i)=>s+Number(i.amount),0);const sum=arr.reduce((s,i)=>s+Number(i.amount),0);const change=prior>0?(((current-prior)/prior)*100):null;const deliveries=docs.filter(i=>analysisById.get(i.id)?.document_type==='delivery_note');const deliveryTotal=deliveries.reduce((s,i)=>s+deliveryAmount(i),0);const tr=document.createElement('tr');for(const [idx,val] of [name,money(sum),money(current),money(prior),change===null?'אין בסיס להשוואה':(change>=0?'+':'')+change.toFixed(1)+'%',String(docs.length),money(deliveryTotal)+(deliveries.length?' ('+deliveries.length+' תעודות)':'')].entries()){const td=document.createElement('td');td.textContent=val;if(idx===4&&change!==null)td.className=change>0?'dash-up':change<0?'dash-down':'';tr.append(td)}body.append(tr)}
+ if(!body.children.length){const tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=7;td.textContent='אין מסמכים עם ספק מזוהה בתקופה שנבחרה';tr.append(td);body.append(tr)}
+ const priceBody=$('dashPrices');priceBody.replaceChildren();const byId=new Map(validDocs.map(i=>[i.id,i]));const grouped=new Map();
+ for(const item of invoiceItems){const inv=byId.get(item.invoice_id);if(!inv||!keys.includes(docDate(inv).slice(0,7))||(chosen&&supplierOf(inv)!==chosen))continue;const a=analysisById.get(inv.id);if(!a||!a.reviewed||!['invoice','tax_invoice','receipt','tax_invoice_receipt','delivery_note'].includes(a.document_type))continue;const price=Number(item.unit_price);if(!Number.isFinite(price)||price<=0)continue;const sku=String(item.sku||'').trim(),description=String(item.description||'').trim();if(!sku&&!description)continue;const name=supplierOf(inv);const productKey=sku?'sku:'+sku.toLowerCase():'desc:'+description.toLowerCase().replace(/\s+/g,' ').trim();const key=name+'|'+productKey;if(!grouped.has(key))grouped.set(key,[]);grouped.get(key).push({name,product:description||sku,sku,price,quantity:item.quantity,date:docDate(inv),invoiceId:inv.id})}
+ const changes=[];for(const rows of grouped.values()){rows.sort((a,b)=>a.date.localeCompare(b.date)||a.invoiceId.localeCompare(b.invoiceId));const distinct=[];for(const row of rows){if(!distinct.length||distinct[distinct.length-1].invoiceId!==row.invoiceId)distinct.push(row)}if(distinct.length<2)continue;const a=distinct[distinct.length-2],b=distinct[distinct.length-1];if(a.price===b.price)continue;const qty=b.quantity===null||b.quantity===undefined||b.quantity===''?null:Number(b.quantity);changes.push({a,b,pct:(b.price-a.price)/a.price*100,impact:Number.isFinite(qty)&&qty>=0?(b.price-a.price)*qty:null,qty:Number.isFinite(qty)&&qty>=0?qty:null})}
+ const rises=changes.filter(x=>x.pct>0),falls=changes.filter(x=>x.pct<0);$('priceRises').textContent=String(rises.length);$('priceFalls').textContent=String(falls.length);$('priceImpact').textContent=money(rises.reduce((sum,x)=>sum+Math.max(x.impact||0,0),0));
+ const mode=$('priceFilter').value,term=$('priceSearch').value.trim().toLowerCase();const shown=changes.filter(x=>(mode==='all'||mode==='up'&&x.pct>0||mode==='down'&&x.pct<0)&&(!term||(x.b.product+' '+x.b.sku+' '+x.b.name).toLowerCase().includes(term))).sort((x,y)=>Math.abs(y.pct)-Math.abs(x.pct));
+ for(const {a,b,pct,impact,qty} of shown.slice(0,100)){const tr=document.createElement('tr');for(const [idx,val] of [b.name,b.product+(b.sku?' ('+b.sku+')':''),money(a.price),money(b.price),(pct>=0?'+':'')+pct.toFixed(1)+'%',qty===null?'לא זוהתה':String(qty),impact===null?'לא ניתן לחשב':money(impact),b.date].entries()){const td=document.createElement('td');td.textContent=val;if(idx===4||idx===6)td.className=pct>0?'dash-up':'dash-down';tr.append(td)}priceBody.append(tr)}
+ if(!priceBody.children.length){const tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=8;td.textContent=changes.length?'אין מוצרים שעונים לסינון':'עדיין אין שני מחירים מאושרים לאותו מוצר ואותו ספק בתקופה';tr.append(td);priceBody.append(tr)}
+ $('priceNote').textContent='ההשפעה הכספית מחושבת לפי הכמות במסמך האחרון בלבד — אינה אומדן חודשי. ודא שמדובר באותה יחידת מידה, אריזה, בסיס מע״מ ומחיר לפני הנחה. מוצרים שלא אושרו אינם מוצגים.';
+ $('dashStatus').textContent='רשימת הספקים כוללת גם תמונות, PDF ותעודות משלוח עם ספק שזוהה. סכומי רכישות כוללים רק חשבוניות מאושרות וקליטה ידנית; עלות תעודות משלוח מוצגת בנפרד. מחירי מוצרים מבוססים על שורות שנותחו ואושרו.';
+}
+function financeSupplier(inv,analysisMap){const a=analysisMap.get(inv.id),detected=String(a?.extracted?.supplier_name||'').trim(),stored=String(inv.supplier_name||'').trim();return detected&&detected!=='ממתין לזיהוי'?detected:(stored==='ממתין לזיהוי'?'':stored)}
+function financialInvoice(inv,analysisMap){const a=analysisMap.get(inv.id);return (!a||(a.reviewed===true&&['invoice','tax_invoice','receipt','tax_invoice_receipt'].includes(a.document_type)))&&Number.isFinite(Number(inv.amount))&&Number(inv.amount)>=0}
+function financialMonth(inv,analysisMap){const a=analysisMap.get(inv.id);return String(a?.extracted?.document_date||inv.invoice_date||'').slice(0,7)}
+function monthShift(key,delta){const [y,m]=key.split('-').map(Number),d=new Date(y,m-1+delta,1);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')}
+function smallTrend(vals){const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('class','mini-trend');svg.setAttribute('viewBox','0 0 110 32');svg.setAttribute('role','img');svg.setAttribute('aria-label','מגמת שישה חודשים');const mx=Math.max(...vals,1),points=vals.map((v,i)=>(4+i*20)+','+(29-v/mx*24)).join(' ');const line=document.createElementNS('http://www.w3.org/2000/svg','polyline');line.setAttribute('points',points);line.setAttribute('fill','none');line.setAttribute('stroke',vals.at(-1)>vals[0]?'#bf563e':'#1968ac');line.setAttribute('stroke-width','2.5');line.setAttribute('stroke-linecap','round');svg.append(line);return svg}
+async function loadMonthlySales(){try{const data=await api('/rest/v1/monthly_sales?select=month,sales_ex_vat&business_id=eq.'+encodeURIComponent(businessId)+'&order=month.desc&limit=120');monthlySales=Array.isArray(data)?data:[];$('revenueStatus').textContent=''}catch(e){monthlySales=[];$('revenueStatus').textContent='טעינת מכירות נכשלה. יש להריץ את קובץ monthly_sales_setup.sql ב־Supabase. '+e.message}}
+function renderMonthlyFinance(){const input=$('financeMonth');if(!input)return;if(!input.value)input.value=localDate().slice(0,7);const key=input.value,prev=monthShift(key,-1),aMap=new Map(analyses.map(a=>[a.invoice_id,a]));const duplicates=duplicateDocumentIds();const valid=invoices.filter(i=>!duplicates.has(i.id)&&financeSupplier(i,aMap)&&financialInvoice(i,aMap));const names=[...new Set(invoices.map(i=>financeSupplier(i,aMap)).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'he'));const body=$('financeSuppliers');body.replaceChildren();let payable=0;
+for(const name of names){const docs=valid.filter(i=>financeSupplier(i,aMap)===name),current=docs.filter(i=>financialMonth(i,aMap)===key),prior=docs.filter(i=>financialMonth(i,aMap)===prev),sum=rows=>rows.reduce((t,i)=>t+Number(i.amount),0),due=sum(current.filter(i=>!['paid','שולם'].includes(String(i.status).toLowerCase())));payable+=due;const before=sum(prior),now=sum(current),change=before>0?((now-before)/before*100):null,vals=Array.from({length:6},(_,idx)=>sum(docs.filter(i=>financialMonth(i,aMap)===monthShift(key,idx-5))));const tr=document.createElement('tr');for(const v of [name,money(due),String(current.length),money(before),change===null?'אין בסיס להשוואה':(change>=0?'+':'')+change.toFixed(1)+'%']){const td=document.createElement('td');td.textContent=v;tr.append(td)}const td=document.createElement('td');td.append(smallTrend(vals));tr.append(td);body.append(tr)}
+if(!names.length){const tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=6;td.textContent='עדיין אין ספקים מזוהים';tr.append(td);body.append(tr)}const sales=monthlySales.find(x=>String(x.month).slice(0,7)===key);const rev=sales?Number(sales.sales_ex_vat):null;$('monthlyRevenue').value=sales?String(sales.sales_ex_vat):'';$('fcRevenue').textContent=rev===null?'לא הוזן':money(rev);const purchases=valid.filter(i=>financialMonth(i,aMap)===key).reduce((sum,i)=>sum+Number(i.amount),0);$('fcPurchases').textContent=money(purchases);$('fcPercent').textContent=rev===null?'יש להזין מכירות':rev===0?'לא ניתן לחשב':(purchases/rev*100).toFixed(1)+'%';$('financeDue').textContent=money(payable)}
+async function saveMonthlyRevenue(){const button=$('saveMonthlyRevenue'),month=$('financeMonth').value,raw=$('monthlyRevenue').value;if(!/^\d{4}-\d{2}$/.test(month)){msg('appMsg','בחר חודש תקין');return}if(raw.trim()===''||!Number.isFinite(Number(raw))||Number(raw)<0){msg('appMsg','יש להזין סכום מכירות תקין, כולל אפס אם לא היו מכירות');return}button.disabled=true;try{await api('/rest/v1/monthly_sales?on_conflict=business_id,month',{method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=representation'},body:{business_id:businessId,month:month+'-01',sales_ex_vat:Number(raw)}});await loadMonthlySales();renderMonthlyFinance();msg('appMsg','המכירות החודשיות נשמרו בהצלחה',true)}catch(e){msg('appMsg','שמירת מכירות נכשלה: '+e.message+' — ודא שהרצת את קובץ SQL')}finally{button.disabled=false}}
+
+// Document identity is scoped to the logged-in business. Never merge a delivery note with an invoice.
+function normalizeDocumentNumber(v){return String(v??'').normalize('NFKC').replace(/[\s\-–—./\\]/g,'').toLowerCase().trim()}
+function documentIdentity(ex,inv){
+ const supplier=normalizeSupplier(ex?.supplier_name||inv?.supplier_name);
+ const number=normalizeDocumentNumber(ex?.document_number||inv?.invoice_number);
+ const type=String(ex?.document_type||'').trim().toLowerCase();
+ // A provisional upload number is not a real document number.
+ if(!supplier||supplier==='ממתין לזיהוי'||!number||number.startsWith('לבדיקה')||!type||type==='other'||type==='unknown')return null;
+ return {supplier,number,type};
+}
+// Deduplicate only confidently identified documents within the current business.
+// The earliest upload is canonical; later uploads remain visible for review.
+function duplicateDocumentIds(){
+ const byInvoice=new Map(invoices.map(i=>[i.id,i]));
+ const ordered=[...analyses].sort((a,b)=>{
+  const ai=byInvoice.get(a.invoice_id),bi=byInvoice.get(b.invoice_id);
+  return String(ai?.created_at||'').localeCompare(String(bi?.created_at||''))||String(a.invoice_id).localeCompare(String(b.invoice_id));
+ });
+ const seen=new Set(),duplicates=new Set();
+ for(const a of ordered){
+  const inv=byInvoice.get(a.invoice_id);
+  if(!inv)continue;
+  const identity=documentIdentity({...a.extracted,document_type:a.document_type||a.extracted?.document_type},inv);
+  if(!identity)continue;
+  const key=JSON.stringify([inv.business_id,identity.supplier,identity.number,identity.type]);
+  if(seen.has(key))duplicates.add(a.invoice_id);else seen.add(key);
+ }
+ return duplicates;
+}
+function analysisIdentity(ex){return documentIdentity({...ex,document_type:ex?.document_type},lastInvoice)}
+async function findDocumentDuplicates(ex,invoiceId){
+ const identity=analysisIdentity(ex);if(!identity)return [];
+ // Query live data instead of trusting the dashboard's cached 1000-row list.
+ const rows=await api('/rest/v1/invoice_analysis?select=invoice_id,extracted,document_type&business_id=eq.'+encodeURIComponent(businessId)+'&limit=10000');
+ const matches=[];
+ for(const row of rows){
+  if(row.invoice_id===invoiceId)continue;
+  const found=documentIdentity({...row.extracted,document_type:row.document_type||row.extracted?.document_type},{});
+  if(found&&found.supplier===identity.supplier&&found.number===identity.number&&found.type===identity.type)matches.push(row.invoice_id);
+ }
+ return matches;
+}
+async function checkManualDuplicate(supplier,number){
+ const normalizedSupplier=normalizeSupplier(supplier),normalizedNumber=normalizeDocumentNumber(number);
+ if(!normalizedSupplier||!normalizedNumber)throw Error('יש להזין ספק ומספר חשבונית');
+ const existing=await api('/rest/v1/invoices?select=id,supplier_name,invoice_number&business_id=eq.'+encodeURIComponent(businessId)+'&limit=10000');
+ return existing.filter(i=>normalizeSupplier(i.supplier_name)===normalizedSupplier&&normalizeDocumentNumber(i.invoice_number)===normalizedNumber);
+}
+async function updateDuplicateReview(){
+ const sequence=++duplicateCheckSequence;
+ duplicateForReview='unverified';
+ const warning=$('duplicateReview');if(!warning||!lastAnalysis||!lastInvoice)return;
+ warning.textContent='בודק כפילויות...';warning.className='result-note';
+ const approve=$('approveAnalysis');if(approve)approve.disabled=true;
+ try{
+  const identity=analysisIdentity(lastAnalysis);
+  if(!identity){
+   if(sequence!==duplicateCheckSequence)return;
+   warning.className='result-warning';warning.textContent='יש להשלים שם ספק, מספר מסמך וסוג מסמך לפני אישור.';
+   return;
+  }
+  const duplicates=await findDocumentDuplicates(lastAnalysis,lastInvoice.id);
+  if(sequence!==duplicateCheckSequence)return;
+  duplicateForReview=duplicates.length?duplicates:null;
+  warning.textContent=duplicates.length?'⚠️ כפילות: מסמך מאותו ספק, עם אותו מספר ואותו סוג, כבר נקלט ('+duplicates.length+' עותקים). ניתן לשמור תיקונים, אך לא לאשר שוב.':'✓ לא נמצאה כפילות לפי ספק, מספר וסוג מסמך.';
+  warning.className=duplicates.length?'result-warning':'result-note';
+  if(approve)approve.disabled=!['invoice','tax_invoice','receipt','tax_invoice_receipt'].includes(lastAnalysis.document_type)||duplicates.length>0;
+ }catch(e){
+  if(sequence!==duplicateCheckSequence)return;
+  duplicateForReview='unverified';warning.className='result-warning';
+  warning.textContent='בדיקת הכפילויות נכשלה: '+e.message+'. אישור חסום עד לבדיקה.';
+ }
+}
+
+function normalizeSupplier(v){return String(v||'').toLowerCase().replace(/["׳״'`.,()\-]/g,' ').replace(/\b(בעמ|בע מ|ltd|limited)\b/g,' ').replace(/\s+/g,' ').trim()}
+function documentAmount(analysis){
+ const ex=analysis.extracted||{};
+ const v=ex.total_amount??ex.subtotal;
+ if(v!==null&&v!==undefined&&v!==''&&Number.isFinite(Number(v))&&Number(v)>0)return Number(v);
+ const items=invoiceItems.filter(x=>x.invoice_id===analysis.invoice_id);
+ if(!items.length)return null;
+ let total=0;
+ for(const item of items){const n=item.line_total??(item.quantity!=null&&item.unit_price!=null?Number(item.quantity)*Number(item.unit_price):null);if(n==null||!Number.isFinite(Number(n)))return null;total+=Number(n)}
+ return total>0?total:null;
+}
+function matchScore(delivery,financial){
+ const d=delivery.extracted||{},f=financial.extracted||{};
+ const di=invoices.find(x=>x.id===delivery.invoice_id)||{},fi=invoices.find(x=>x.id===financial.invoice_id)||{};
+ const ds=normalizeSupplier(d.supplier_name||di.supplier_name),fs=normalizeSupplier(f.supplier_name||fi.supplier_name);
+ // A match must have a credible supplier identity; date alone is never enough.
+ if(!ds||!fs)return {score:0,why:'לא זוהה ספק בשני המסמכים',eligible:false};
+ let score=0,why=[];
+ const exact=ds===fs,similar=ds.length>=6&&fs.length>=6&&(ds.includes(fs)||fs.includes(ds));
+ if(!exact&&!similar)return {score:0,why:'ספק שונה',eligible:false};
+ score+=exact?70:35;why.push(exact?'אותו ספק':'שם ספק דומה');
+ const dd=d.document_date||di.invoice_date,fd=f.document_date||fi.invoice_date;
+ if(dd&&fd){const days=Math.abs((Date.parse(dd)-Date.parse(fd))/86400000);if(Number.isFinite(days)){if(days<=7){score+=20;why.push('תאריכים קרובים')}else if(days<=30){score+=10;why.push('עד 30 יום')}else if(days<=60){score+=3;why.push('עד 60 יום')}else{score-=20;why.push('תאריכים רחוקים')}}}
+ const dn=normalizeDocumentNumber(d.document_number||di.invoice_number),fn=normalizeDocumentNumber(f.document_number||fi.invoice_number);
+ if(dn&&fn&&dn===fn){score+=10;why.push('מספר מסמך זהה — יש לבדוק סוג מסמך')}
+ return {score,why:why.join(' · '),eligible:true};
+}
+function matchOverview(delivery,financial,invoiceMap,duplicateIds){
+ const linked=documentMatches.filter(m=>m.financial_invoice_id===financial.invoice_id&&!duplicateIds.has(m.delivery_invoice_id));
+ const linkedSum=linked.reduce((sum,m)=>{const a=analyses.find(x=>x.invoice_id===m.delivery_invoice_id);return sum+(a?documentAmount(a)||0:0)},0);
+ const finAmount=(documentAmount(financial)??Number(invoiceMap.get(financial.invoice_id)?.amount))||0;
+ const current=linked.some(m=>m.delivery_invoice_id===delivery.invoice_id);
+ const nextAmount=linkedSum+(current?0:documentAmount(delivery)||0);
+ return {linkedCount:linked.length,linkedSum,finAmount,nextAmount,current};
+}
+
+function renderCosts(){
+ const invoiceMap=new Map(invoices.map(x=>[x.id,x]));
+ const byInvoice=new Map();
+ for(const item of invoiceItems){if(!byInvoice.has(item.invoice_id))byInvoice.set(item.invoice_id,[]);byInvoice.get(item.invoice_id).push(item)}
+ const duplicateIds=duplicateDocumentIds();
+  const deliveries=analyses.filter(a=>a.document_type==='delivery_note');
+ let total=0,priced=0,missing=0;
+ $('costRows').replaceChildren();
+ for(const a of deliveries){
+  const items=byInvoice.get(a.invoice_id)||[];
+  let subtotal=0,known=0;
+  for(const item of items){
+   let amount=item.line_total;
+   if(amount===null||amount===undefined){if(item.quantity!==null&&item.quantity!==undefined&&item.unit_price!==null&&item.unit_price!==undefined)amount=Number(item.quantity)*Number(item.unit_price)}
+   if(amount!==null&&amount!==undefined&&amount!==''&&Number.isFinite(Number(amount))){subtotal+=Number(amount);known++}else missing++;
+  }
+  const isDuplicate=duplicateIds.has(a.invoice_id);
+  if(!isDuplicate){total+=subtotal;priced+=known;}
+  const d=a.extracted||{};const inv=invoiceMap.get(a.invoice_id)||{};
+  const tr=document.createElement('tr');
+  for(const value of [d.document_number||inv.invoice_number||'ללא מספר',d.supplier_name||inv.supplier_name||'לא זוהה',d.document_date||inv.invoice_date||'לא זוהה',String(items.length),money(subtotal),isDuplicate?'כפילות — לא נספר':known===items.length&&items.length?'סכום שורות זוהה':'נדרשת בדיקה']){
+   const td=document.createElement('td');td.textContent=value;tr.append(td);
+  }
+   const tdMatch=document.createElement('td');
+   const existing=documentMatches.find(m=>m.delivery_invoice_id===a.invoice_id);
+   if(!matchingEnabled){tdMatch.textContent='נדרש להפעיל התאמת מסמכים ב־Supabase';tdMatch.className='muted'}
+   else{
+    const financial=analyses.filter(x=>['invoice','tax_invoice','tax_invoice_receipt'].includes(x.document_type)&&x.invoice_id!==a.invoice_id&&!duplicateIds.has(x.invoice_id));
+    const ranked=financial.map(f=>({...matchScore(a,f),analysis:f})).filter(x=>x.eligible).sort((x,y)=>y.score-x.score);
+    const suggested=ranked.find(x=>x.score>=70&&!isDuplicate);
+    const wrapper=document.createElement('div');wrapper.className='match-actions';
+    const selector=document.createElement('select');selector.className='review-input match-select';selector.setAttribute('aria-label','בחר חשבונית להתאמה');
+    const empty=document.createElement('option');empty.value='';empty.textContent='ללא התאמה';selector.append(empty);
+    for(const candidate of ranked){const f=candidate.analysis,option=document.createElement('option');option.value=f.invoice_id;
+     const fin=invoiceMap.get(f.invoice_id)||{},ex=f.extracted||{};
+     const overview=matchOverview(a,f,invoiceMap,duplicateIds);
+      option.textContent=(candidate.score>=70?'★ ':'')+(ex.supplier_name||fin.supplier_name||'ספק לא ידוע')+' — '+(ex.document_number||fin.invoice_number||'ללא מספר')+' ('+(ex.document_date||fin.invoice_date||'ללא תאריך')+') · '+overview.linkedCount+' תעודות מקושרות';selector.append(option)}
+    if(existing&&!financial.some(f=>f.invoice_id===existing.financial_invoice_id)){
+     const unavailable=document.createElement('option');unavailable.value=existing.financial_invoice_id;unavailable.textContent='התאמה קיימת — חשבונית לא זמינה';selector.append(unavailable)}
+    selector.value=existing?.financial_invoice_id||suggested?.analysis.invoice_id||'';
+    const saveMatch=document.createElement('button');saveMatch.type='button';saveMatch.className='file-button';saveMatch.textContent=existing?'עדכן התאמה':'אשר התאמה';
+    saveMatch.onclick=async()=>{saveMatch.disabled=true;try{
+     await api('/rest/v1/rpc/set_invoice_document_match',{method:'POST',body:{p_delivery_id:a.invoice_id,p_financial_id:selector.value||null}});
+     await loadCostData();msg('appMsg','ההתאמה נשמרה. לא נוסף חיוב כפול.',true);
+    }catch(e){msg('appMsg','שמירת התאמה נכשלה: '+e.message)}finally{saveMatch.disabled=false}};
+    if(isDuplicate){selector.disabled=true;saveMatch.disabled=true;saveMatch.textContent='עותק כפול — לא מקשרים'}
+     wrapper.append(selector,saveMatch);tdMatch.append(wrapper);
+    const hint=document.createElement('div');hint.className='match-hint';
+    if(isDuplicate){hint.textContent='עותק כפול של מסמך שכבר נקלט — לא מקשרים מחדש';hint.classList.add('match-pending')}
+     else if(existing){hint.textContent='✓ קיימת התאמה שמורה';hint.classList.add('match-ok')}
+    else if(suggested){hint.textContent='הצעה לבדיקה בלבד: '+suggested.why+' — יש לאשר ידנית';hint.classList.add('match-pending')}
+    else{hint.textContent=ranked.length?'לא נמצאה התאמה ברורה. אפשר לבחור ידנית.':'אין חשבונית מאותו ספק להתאמה'}
+    tdMatch.append(hint);
+     if(!isDuplicate){const summary=document.createElement('div');summary.className='match-hint';const update=()=>{const f=financial.find(x=>x.invoice_id===selector.value);if(!f){summary.textContent='בחר חשבונית כדי לראות סכומי התאמה';return}const v=matchOverview(a,f,invoiceMap,duplicateIds);summary.textContent='תעודות מקושרות: '+v.linkedCount+' · סכום תעודות לאחר הקישור: '+money(v.nextAmount)+' · סכום חשבונית: '+money(v.finAmount)+' (ייתכנו הפרשי מע״מ)'};selector.addEventListener('change',update);update();tdMatch.append(summary)}
+   }
+  tr.append(tdMatch);$('costRows').append(tr);
+ }
+ if(!deliveries.length){const tr=document.createElement('tr');const td=document.createElement('td');td.colSpan=7;td.textContent='אין עדיין תעודות משלוח שנותחו ונשמרו';tr.append(td);$('costRows').append(tr)}
+ $('deliveryCost').textContent=money(total);
+ $('deliveryCount').textContent=String(deliveries.filter(a=>!duplicateIds.has(a.invoice_id)).length);
+ $('itemCount').textContent=String(invoiceItems.filter(i=>!duplicateIds.has(i.invoice_id)).length);
+ $('matchSummary').textContent=duplicateIds.size?'זוהו '+duplicateIds.size+' עותקים כפולים. הם נשארים ברשימה אך אינם נכללים בחישובי העלות.':'לא זוהו כפילויות במסמכים המזוהים.';
+ $('costNote').textContent='סיכום זמני של שורות מזוהות בתעודות משלוח: '+priced+' שורות עם מחיר'+(missing?' · '+missing+' שורות ללא מחיר מלא':'')+'. כפילויות שלא נספרו: '+deliveries.filter(a=>duplicateIds.has(a.invoice_id)).length+'. התאמות שמורות: '+documentMatches.length+'. לא כולל מע״מ שלא זוהה ולא מהווה עדיין דוח פוד־קוסט סופי. סכומים יכולים להשתנות לאחר תיקון הזיהוי.';
+}
+function validateFile(file){if(!file)return;if(file.size>MAX_FILE_SIZE)throw Error('הקובץ גדול מ־10MB');if(!ALLOWED_TYPES.has(file.type))throw Error('ניתן להעלות PDF, JPG, PNG או WEBP בלבד')}
+function fileExtension(file){return {'application/pdf':'pdf','image/jpeg':'jpg','image/png':'png','image/webp':'webp'}[file.type]}
+async function uploadInvoiceFile(file){
+ validateFile(file);
+ const name=crypto.randomUUID()+'.'+fileExtension(file);
+ const path=businessId+'/'+name;
+ await request('/storage/v1/object/'+encodeURIComponent(BUCKET)+'/'+path,{method:'POST',headers:{'Content-Type':file.type,'x-upsert':'false'},body:file});
+ return path;
+}
+async function openInvoiceFile(path,button){
+ if(typeof path!=='string'||!path.startsWith(businessId+'/')){msg('appMsg','אין הרשאה לפתוח קובץ של עסק אחר');return}
+ button.disabled=true;const oldText=button.textContent;button.textContent='פותח...';
+ // Open a blank tab during the click to avoid popup blocking after the async request.
+ const tab=window.open('','_blank');
+ try{
+  const data=await api('/storage/v1/object/sign/'+encodeURIComponent(BUCKET)+'/'+path.split('/').map(encodeURIComponent).join('/'),{method:'POST',body:{expiresIn:60}});
+  if(!data?.signedURL)throw Error('לא התקבל קישור לקובץ');
+  const url=new URL(data.signedURL.startsWith('/object/')?'/storage/v1'+data.signedURL:data.signedURL,BASE+'/storage/v1/');
+  if(url.origin!==new URL(BASE).origin)throw Error('כתובת קובץ לא תקינה');
+  if(tab){tab.opener=null;tab.location.replace(url.href)}else{msg('appMsg','הדפדפן חסם חלון חדש. אפשר חלונות קופצים לאתר ונסה שוב')}
+ }catch(e){if(tab)tab.close();msg('appMsg','פתיחת קובץ נכשלה: '+e.message)}finally{button.disabled=false;button.textContent=oldText}
+}
+function resultCell(label,value){
+ const el=document.createElement('div');el.className='result-cell';const small=document.createElement('small');small.textContent=label;const strong=document.createElement('b');strong.textContent=value===null||value===undefined||value===''?'לא זוהה':String(value);el.append(small,strong);return el;
+}
+// Normalize OCR dates without using Date.parse (which misreads short dates).
+function normalizeInvoiceDate(value){
+ const raw=String(value??'').trim();if(!raw)return {value:'',warning:'לא זוהה תאריך. יש להזין אותו ידנית.'};
+ const digits=raw.replace(/[.\/]/g,'-').replace(/\s+/g,'');
+ let y,m,d,match;
+ if((match=digits.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/))){[,y,m,d]=match}
+ else if((match=digits.match(/^(\d{1,2})-(\d{1,2})-(\d{2}|\d{4})$/))){
+  [,d,m,y]=match;
+  if(y.length===2)y=String(2000+Number(y));
+ }else return {value:'',warning:'פורמט תאריך לא מזוהה: '+raw+'. יש לבחור תאריך ידנית.'};
+ y=Number(y);m=Number(m);d=Number(d);
+ const dt=new Date(Date.UTC(y,m-1,d));
+ if(dt.getUTCFullYear()!==y||dt.getUTCMonth()!==m-1||dt.getUTCDate()!==d)return {value:'',warning:'תאריך לא תקין: '+raw+'. יש לתקן ידנית.'};
+ const iso=String(y).padStart(4,'0')+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+ // OCR sometimes transforms 10/11/26 into 2010-11-26; an old year needs explicit review.
+ if(y<2020||y>new Date().getFullYear()+1)return {value:iso,warning:'שנת החשבונית ('+y+') חריגה. יש לבדוק מול המסמך ולתקן לפני אישור.'};
+ return {value:iso,warning:''};
+}
+function showAnalysis(result,invoice){
+ const data=result?.extracted||result?.data?.extracted||result?.data||result||{};
+ lastAnalysis=structuredClone(data);lastInvoice=invoice;
+ const parsedDate=normalizeInvoiceDate(lastAnalysis.document_date);
+ lastAnalysis.document_date=parsedDate.value;
+ lastAnalysis._dateReviewRequired=Boolean(parsedDate.warning);
+ lastAnalysis._dateReviewWarning=parsedDate.warning;
+ const section=document.createElement('section');section.className='panel';section.id='analysisResult';
+ const title=document.createElement('h3');title.className='result-title';title.textContent='תוצאות זיהוי — '+String(invoice.invoice_number||'מסמך חדש');section.append(title);
+ const grid=document.createElement('div');grid.className='result-grid';
+ const typeNames={invoice:'חשבונית',delivery_note:'תעודת משלוח',receipt:'קבלה',credit_note:'זיכוי',other:'מסמך אחר'};
+ const amount=v=>v===null||v===undefined||v===''?'לא זוהה':money(v);
+ for(const [k,v] of [['סוג מסמך',typeNames[data.document_type]||data.document_type],['ספק',data.supplier_name],['מספר מסמך',data.document_number],['תאריך',lastAnalysis.document_date||'דורש תיקון'],['סכום לפני מע״מ',amount(data.subtotal)],['מע״מ',amount(data.vat_amount)],['סה״כ במסמך',amount(data.total_amount)]])grid.append(resultCell(k,v));
+ section.append(grid);
+ const review=document.createElement('div');review.className='grid';
+ const reviewFields=[['supplier_name','שם ספק','text'],['document_number','מספר מסמך','text'],['document_date','תאריך','date'],['total_amount','סכום כולל','number']];
+ for(const [key,label,type] of reviewFields){const box=document.createElement('div');const lab=document.createElement('label');lab.textContent=label;const inp=document.createElement('input');inp.type=type;inp.className='review-input';if(type==='number'){inp.step='0.01';inp.min='0'}inp.value=key==='document_date'?(lastAnalysis.document_date||''):(data[key]??'');inp.addEventListener('input',()=>{lastAnalysis[key]=inp.value===''?null:(type==='number'?Number(inp.value):inp.value);if(key==='document_date'){const checked=normalizeInvoiceDate(inp.value);lastAnalysis._dateReviewRequired=Boolean(checked.warning);lastAnalysis._dateReviewWarning=checked.warning;const warning=$('dateReviewWarning');if(warning)warning.textContent=checked.warning||'✓ התאריך נבדק ידנית';}if(['supplier_name','document_number'].includes(key))void updateDuplicateReview()});box.append(lab,inp);review.append(box)}section.append(review);
+ const dateWarning=document.createElement('p');dateWarning.id='dateReviewWarning';dateWarning.className='review-note';dateWarning.textContent=lastAnalysis._dateReviewWarning||'תאריך החשבונית זוהה בפורמט תקין. יש לוודא מול המקור.';section.append(dateWarning);
+ const items=Array.isArray(data.items)?data.items:[];
+ const heading=document.createElement('h3');heading.textContent='מוצרים שזוהו ('+items.length+')';section.append(heading);
+ if(items.length){const wrap=document.createElement('div');wrap.className='result-wrap';const table=document.createElement('table');const head=document.createElement('thead');const tr=document.createElement('tr');for(const label of ['מוצר','מק״ט','כמות','מחיר יחידה','סה״כ שורה']){const th=document.createElement('th');th.textContent=label;tr.append(th)}head.append(tr);table.append(head);const body=document.createElement('tbody');let calculated=0,complete=0;
+ for(const [index,item] of items.entries()){const row=document.createElement('tr');const qty=item.quantity,unit=item.unit_price,line=item.line_total;let lineValue=line;
+ if((lineValue===null||lineValue===undefined)&&Number.isFinite(Number(qty))&&Number.isFinite(Number(unit))&&qty!==null&&unit!==null)lineValue=Number(qty)*Number(unit);
+ if(lineValue!==null&&lineValue!==undefined&&lineValue!==''){calculated+=Number(lineValue)||0;complete++}
+ for(const [key,type] of [['description','text'],['sku','text'],['quantity','number'],['unit_price','number'],['line_total','number']]){const td=document.createElement('td');const inp=document.createElement('input');inp.className='review-input';inp.type=type;inp.value=item[key]??'';if(type==='number')inp.step='any';inp.addEventListener('input',()=>{lastAnalysis.items[index][key]=inp.value===''?null:(type==='number'?Number(inp.value):inp.value)});td.append(inp);row.append(td)}body.append(row)}table.append(body);wrap.append(table);section.append(wrap);
+ const note=document.createElement('p');note.className='result-note';note.textContent='סכום שורות שחושב: '+money(calculated)+(complete<items.length?' (חלק מהשורות חסרות נתונים)':'')+'. יש לוודא התאמה לסכום המסמך; מחירי יחידה אינם בהכרח כוללים מע״מ.';section.append(note);
+ }else{const p=document.createElement('p');p.textContent='לא זוהו פריטי מוצרים במסמך.';section.append(p)}
+ const warnings=[...(Array.isArray(data.warnings)?data.warnings:[]),...(Array.isArray(result?.warnings)?result.warnings:[])];
+ if(data.is_complete_document===false||result?.requires_review||warnings.length){const warn=document.createElement('div');warn.className='result-warning';warn.textContent='נדרשת בדיקה: '+(warnings.join(' • ')||'המסמך לא זוהה במלואו.');section.append(warn)}
+ const note=document.createElement('p');note.className='review-note';note.textContent='הנתונים המזוהים נשמרים כטיוטה. בדוק את השורות ותקן טעויות לפני אישור. תעודת משלוח לא תעדכן סכומים כספיים כדי למנוע ספירה כפולה.';section.append(note);
+ const duplicateWarning=document.createElement('div');duplicateWarning.id='duplicateReview';duplicateWarning.className='result-note';section.append(duplicateWarning);
+  const actions=document.createElement('div');actions.className='review-actions';
+ const save=document.createElement('button');save.textContent='שמור תיקונים';save.onclick=()=>persistAnalysis(false,save);
+ const approve=document.createElement('button');approve.id='approveAnalysis';approve.textContent='אשר חשבונית ועדכן סכומים';approve.disabled=!['invoice','tax_invoice','receipt','tax_invoice_receipt'].includes(data.document_type);approve.onclick=()=>persistAnalysis(true,approve);
+ actions.append(save,approve);section.append(actions);
+ const state=document.createElement('p');state.id='reviewState';state.className='muted';section.append(state);
+ $('appMsg').replaceChildren(section);section.scrollIntoView({behavior:'smooth',block:'start'});void updateDuplicateReview();
+}
+async function persistAnalysis(approve,button){
+ if(!lastInvoice||!lastAnalysis)return;
+ const checkedDate=normalizeInvoiceDate(lastAnalysis.document_date);
+ if(approve&&(checkedDate.warning||lastAnalysis._dateReviewRequired)){
+  const warning=checkedDate.warning||'יש לאשר את תאריך החשבונית לאחר בדיקה מול המקור.';
+  const node=$('reviewState');if(node)node.textContent=warning;
+  return;
+ }
+ if(!checkedDate.warning)lastAnalysis.document_date=checkedDate.value;
+ if(approve){
+  if(!['invoice','tax_invoice','receipt','tax_invoice_receipt'].includes(lastAnalysis.document_type)){msg('appMsg','לא ניתן לאשר תעודת משלוח כסכום חשבונית.');return;}
+  try{const matches=await findDocumentDuplicates(lastAnalysis,lastInvoice.id);if(matches.length){msg('appMsg','המסמך כבר קיים במערכת. אישור נוסף נחסם כדי למנוע כפילות.');await updateDuplicateReview();return;}}
+  catch(e){msg('appMsg','לא ניתן לוודא שאין כפילות ולכן האישור נחסם: '+e.message);return;}
+ }
+ button.disabled=true;const old=button.textContent;button.textContent='שומר...';
+ try{const result=await api('/rest/v1/rpc/save_invoice_analysis',{method:'POST',body:{p_invoice_id:lastInvoice.id,p_extracted:Object.fromEntries(Object.entries(lastAnalysis).filter(([k])=>!k.startsWith('_dateReview'))),p_approve:approve}});
+ $('reviewState').textContent=(approve?'החשבונית אושרה והסכומים עודכנו. ':'הנתונים נשמרו כטיוטה. ')+'נשמרו '+result.items_saved+' שורות.';
+ await refresh();
+ }catch(e){$('reviewState').textContent='שמירה נכשלה: '+e.message+' — יש להריץ תחילה את קובץ ה-SQL ב-Supabase.'}
+ finally{button.disabled=false;button.textContent=old}
+}
+async function runAnalysis(invoice){
+ if(!token||!businessId)throw Error('יש להתחבר מחדש');
+ if(!invoice.file_path||!invoice.file_path.startsWith(businessId+'/'))throw Error('אין קובץ תקין לניתוח');
+ const result=await api('/functions/v1/analyze-invoice',{method:'POST',body:{invoice_id:invoice.id,business_id:businessId,file_path:invoice.file_path}});
+ showAnalysis(result,invoice);
+ try{await api('/rest/v1/rpc/save_invoice_analysis',{method:'POST',body:{p_invoice_id:invoice.id,p_extracted:Object.fromEntries(Object.entries(lastAnalysis).filter(([k])=>!k.startsWith('_dateReview'))),p_approve:false}});$('reviewState').textContent='✓ זוהו ונשמרו '+(lastAnalysis.items?.length||0)+' שורות כטיוטה. ניתן לתקן ולאשר.'}
+ catch(e){$('reviewState').textContent='הזיהוי הצליח, אבל שמירת הפריטים נכשלה: '+e.message+' (בדוק שהרצת את קובץ ה-SQL)'}
+ return result;
+}
+async function analyzeInvoice(invoice,button){
+ button.disabled=true;button.textContent='מנתח...';msg('appMsg','מנתח את המסמך...');
+ try{await runAnalysis(invoice)}catch(e){msg('appMsg','ניתוח החשבונית נכשל: '+e.message)}
+ finally{button.disabled=false;button.textContent='נתח באמצעות AI'}
+}
+async function quickUpload(){
+ const button=$('quickBtn');button.disabled=true;let path='';let saved=false;
+ try{
+  const file=$('quickFile').files[0];if(!file)throw Error('בחר תמונה או קובץ PDF');validateFile(file);
+  msg('appMsg','מעלה את הקובץ לאחסון הפרטי...');path=await uploadInvoiceFile(file);
+  // A provisional row is required because the deployed Edge Function accepts invoice_id.
+  // Do not invent financial values; the user must review and complete the saved row.
+  const placeholder='לבדיקה-'+Date.now();
+  const rows=await api('/rest/v1/invoices',{method:'POST',body:{business_id:businessId,supplier_name:'ממתין לזיהוי',invoice_number:placeholder,amount:0,invoice_date:localDate(),status:'unpaid',file_path:path}});
+  const invoice=Array.isArray(rows)?rows[0]:null;
+  if(!invoice?.id)throw Error('המסמך נשמר אך לא התקבל מזהה לניתוח');saved=true;
+  $('quickFile').value='';await refresh();msg('appMsg','הקובץ נשמר. מפעיל זיהוי מוצרים ומחירים...');
+  try{await runAnalysis(invoice)}catch(err){msg('appMsg','הקובץ נשמר, אבל ניתוח AI נכשל: '+err.message+'\nאפשר לנסות שוב מכפתור נתח באמצעות AI ברשימה.')}
+ }catch(err){msg('appMsg','הקליטה נכשלה: '+err.message+(path&&!saved?'\nייתכן שהקובץ הועלה ללא רשומת חשבונית; יש לבדוק את האחסון.':''))}
+ finally{button.disabled=false}
+}
+async function saveInvoice(e){
+ e.preventDefault();$('saveBtn').disabled=true;msg('appMsg','');
+ let uploadedPath='';
+ try{
+  const existing=await checkManualDuplicate($('supplier').value.trim(),$('invoiceNumber').value.trim());
+  if(existing.length)throw Error('חשבונית מאותו ספק עם אותו מספר כבר קיימת במערכת. לא נשמר עותק נוסף.');
+  const file=$('invoiceFile').files[0];if(file){validateFile(file);msg('appMsg','מעלה את הקובץ...');uploadedPath=await uploadInvoiceFile(file)}
+  msg('appMsg','שומר חשבונית...');
+  await api('/rest/v1/invoices',{method:'POST',body:{business_id:businessId,supplier_name:$('supplier').value.trim(),invoice_number:$('invoiceNumber').value.trim(),amount:Number($('amount').value),invoice_date:$('invoiceDate').value,status:$('status').value,file_path:uploadedPath||null}});
+  $('invoiceForm').reset();$('invoiceDate').value=localDate();await refresh();msg('appMsg','החשבונית נשמרה בהצלחה'+(uploadedPath?' עם הקובץ המצורף':''),true);
+ }catch(err){msg('appMsg','שמירה נכשלה: '+err.message+(uploadedPath?'\nהקובץ הועלה אך החשבונית לא נשמרה; ייתכן שנדרש ניקוי הקובץ מאחסון Supabase.':''))}
+ finally{$('saveBtn').disabled=false}
+}
+function localDate(){const d=new Date(),offset=d.getTimezoneOffset()*60000;return new Date(d.getTime()-offset).toISOString().slice(0,10)}
+$('loginForm').addEventListener('submit',signIn);
+$('invoiceForm').addEventListener('submit',saveInvoice);
+$('quickBtn').addEventListener('click',quickUpload);
+$('search').addEventListener('input',render);
+$('logout').onclick=()=>{token='';businessId='';invoices=[];analyses=[];invoiceItems=[];$('app').style.display='none';$('login').style.display='block';$('identity').textContent='';$('password').value='';msg('loginMsg','');msg('appMsg','')};
+$('invoiceDate').value=localDate();
+$('financeMonth').addEventListener('change',renderMonthlyFinance);$('saveMonthlyRevenue').addEventListener('click',saveMonthlyRevenue);$('dashSupplier').addEventListener('change',renderSupplierDashboard);$('dashMonths').addEventListener('change',renderSupplierDashboard);$('priceFilter').addEventListener('change',renderSupplierDashboard);$('priceSearch').addEventListener('input',renderSupplierDashboard);
+</script>
+</body></html>
