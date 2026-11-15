@@ -480,6 +480,12 @@ async function persistAnalysis(approve,button){
  try{const result=await api('/rest/v1/rpc/save_invoice_analysis',{method:'POST',body:{p_invoice_id:lastInvoice.id,p_extracted:Object.fromEntries(Object.entries(lastAnalysis).filter(([k])=>!k.startsWith('_dateReview'))),p_approve:approve}});
  $('reviewState').textContent=(approve?'החשבונית אושרה והסכומים עודכנו. ':'הנתונים נשמרו כטיוטה. ')+'נשמרו '+result.items_saved+' שורות.';
  await refresh();
+ // Close the review only after a successful save, without altering persistence or duplicate checks.
+ const reviewPanel=$('analysisResult');
+ if(reviewPanel)reviewPanel.remove();
+ lastAnalysis=null;
+ lastInvoice=null;
+ msg('appMsg',approve?'החשבונית נשמרה ואושרה בהצלחה.':'התיקונים נשמרו בהצלחה.',true);
  }catch(e){$('reviewState').textContent='שמירה נכשלה: '+e.message+' — יש להריץ תחילה את קובץ ה-SQL ב-Supabase.'}
  finally{button.disabled=false;button.textContent=old}
 }
