@@ -428,6 +428,7 @@ async function persistAnalysis(approve,button){
   return;
  }
  if(!checkedDate.warning)lastAnalysis.document_date=checkedDate.value;
+ else lastAnalysis.document_date=null;
  if(approve){
   if(!['invoice','tax_invoice','receipt','tax_invoice_receipt'].includes(lastAnalysis.document_type)){msg('appMsg','לא ניתן לאשר תעודת משלוח כסכום חשבונית.');return;}
   try{const matches=await findDocumentDuplicates(lastAnalysis,lastInvoice.id);if(matches.length){msg('appMsg','המסמך כבר קיים במערכת. אישור נוסף נחסם כדי למנוע כפילות.');await updateDuplicateReview();return;}}
