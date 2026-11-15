@@ -164,53 +164,62 @@ for(const name of names){const docs=valid.filter(i=>financeSupplier(i,aMap)===na
 if(!names.length){const tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=6;td.textContent='עדיין אין ספקים מזוהים';tr.append(td);body.append(tr)}const sales=monthlySales.find(x=>String(x.month).slice(0,7)===key);const rev=sales?Number(sales.sales_ex_vat):null;$('monthlyRevenue').value=sales?String(sales.sales_ex_vat):'';$('fcRevenue').textContent=rev===null?'לא הוזן':money(rev);const purchases=valid.filter(i=>financialMonth(i,aMap)===key).reduce((sum,i)=>sum+Number(i.amount),0);$('fcPurchases').textContent=money(purchases);$('fcPercent').textContent=rev===null?'יש להזין מכירות':rev===0?'לא ניתן לחשב':(purchases/rev*100).toFixed(1)+'%';$('financeDue').textContent=money(payable)}
 async function saveMonthlyRevenue(){const button=$('saveMonthlyRevenue'),month=$('financeMonth').value,raw=$('monthlyRevenue').value;if(!/^\d{4}-\d{2}$/.test(month)){msg('appMsg','בחר חודש תקין');return}if(raw.trim()===''||!Number.isFinite(Number(raw))||Number(raw)<0){msg('appMsg','יש להזין סכום מכירות תקין, כולל אפס אם לא היו מכירות');return}button.disabled=true;try{await api('/rest/v1/monthly_sales?on_conflict=business_id,month',{method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=representation'},body:{business_id:businessId,month:month+'-01',sales_ex_vat:Number(raw)}});await loadMonthlySales();renderMonthlyFinance();msg('appMsg','המכירות החודשיות נשמרו בהצלחה',true)}catch(e){msg('appMsg','שמירת מכירות נכשלה: '+e.message+' — ודא שהרצת את קובץ SQL')}finally{button.disabled=false}}
 
-// Document identity is scoped to the logged-in business. Never merge a delivery note with an invoice.
+// Duplicate detection is scoped to one business. Dates and financial subtype are not identity fields.
+// Delivery notes remain separate from financial documents, even when numbers match.
 function normalizeDocumentNumber(v){return String(v??'').normalize('NFKC').replace(/[\s\-–—./\\]/g,'').toLowerCase().trim()}
+function isPlaceholderNumber(v){const n=normalizeDocumentNumber(v);return !n||n.startsWith('לבדיקה')||n==='לאזוהה'||n==='לאידוע'}
+function documentGroup(type){const t=String(type||'').trim().toLowerCase();if(t==='delivery_note')return 'delivery';if(t==='credit_note')return 'credit';if(['invoice','tax_invoice','receipt','tax_invoice_receipt'].includes(t))return 'financial';return ''}
+function supplierVariants(ex,inv){const names=[ex?.supplier_name,inv?.supplier_name].map(normalizeSupplier).filter(n=>n&&n!=='ממתין לזיהוי'&&n!=='לא ידוע');return [...new Set(names)]}
+function numberVariants(ex,inv){return [...new Set([ex?.document_number,inv?.invoice_number].filter(v=>!isPlaceholderNumber(v)).map(normalizeDocumentNumber))]}
 function documentIdentity(ex,inv){
- const supplier=normalizeSupplier(ex?.supplier_name||inv?.supplier_name);
- const number=normalizeDocumentNumber(ex?.document_number||inv?.invoice_number);
- const type=String(ex?.document_type||'').trim().toLowerCase();
- // A provisional upload number is not a real document number.
- if(!supplier||supplier==='ממתין לזיהוי'||!number||number.startsWith('לבדיקה')||!type||type==='other'||type==='unknown')return null;
- return {supplier,number,type};
+ const suppliers=supplierVariants(ex,inv),numbers=numberVariants(ex,inv);
+ const type=documentGroup(ex?.document_type)||(!ex?.document_type?'financial':'');
+ if(!suppliers.length||!numbers.length||!type)return null;
+ return {suppliers,numbers,type};
 }
-// Deduplicate only confidently identified documents within the current business.
-// The earliest upload is canonical; later uploads remain visible for review.
+function identitiesMatch(a,b){return !!a&&!!b&&a.type===b.type&&a.suppliers.some(x=>b.suppliers.includes(x))&&a.numbers.some(x=>b.numbers.includes(x))}
+function identityForInvoice(inv,analysisMap){const a=analysisMap.get(inv.id);return documentIdentity({...a?.extracted,document_type:a?.document_type||a?.extracted?.document_type},inv)}
 function duplicateDocumentIds(){
- const byInvoice=new Map(invoices.map(i=>[i.id,i]));
- const ordered=[...analyses].sort((a,b)=>{
-  const ai=byInvoice.get(a.invoice_id),bi=byInvoice.get(b.invoice_id);
-  return String(ai?.created_at||'').localeCompare(String(bi?.created_at||''))||String(a.invoice_id).localeCompare(String(b.invoice_id));
+ const analysisMap=new Map(analyses.map(a=>[a.invoice_id,a]));
+ // Prefer an approved document as the canonical copy. Otherwise keep the earliest upload.
+ const ordered=[...invoices].sort((a,b)=>{
+  const aa=analysisMap.get(a.id),bb=analysisMap.get(b.id);
+  const approvedA=aa?.reviewed===true?1:0,approvedB=bb?.reviewed===true?1:0;
+  return approvedB-approvedA||String(a.created_at||'').localeCompare(String(b.created_at||''))||String(a.id).localeCompare(String(b.id));
  });
- const seen=new Set(),duplicates=new Set();
- for(const a of ordered){
-  const inv=byInvoice.get(a.invoice_id);
-  if(!inv)continue;
-  const identity=documentIdentity({...a.extracted,document_type:a.document_type||a.extracted?.document_type},inv);
+ const kept=[],duplicates=new Set();
+ for(const inv of ordered){
+  const identity=identityForInvoice(inv,analysisMap);
   if(!identity)continue;
-  const key=JSON.stringify([inv.business_id,identity.supplier,identity.number,identity.type]);
-  if(seen.has(key))duplicates.add(a.invoice_id);else seen.add(key);
+  if(kept.some(x=>identitiesMatch(x,identity)))duplicates.add(inv.id);
+  else kept.push(identity);
  }
  return duplicates;
 }
-function analysisIdentity(ex){return documentIdentity({...ex,document_type:ex?.document_type},lastInvoice)}
+function analysisIdentity(ex){return documentIdentity(ex,lastInvoice)}
 async function findDocumentDuplicates(ex,invoiceId){
- const identity=analysisIdentity(ex);if(!identity)return [];
- // Query live data instead of trusting the dashboard's cached 1000-row list.
- const rows=await api('/rest/v1/invoice_analysis?select=invoice_id,extracted,document_type&business_id=eq.'+encodeURIComponent(businessId)+'&limit=10000');
- const matches=[];
- for(const row of rows){
-  if(row.invoice_id===invoiceId)continue;
-  const found=documentIdentity({...row.extracted,document_type:row.document_type||row.extracted?.document_type},{});
-  if(found&&found.supplier===identity.supplier&&found.number===identity.number&&found.type===identity.type)matches.push(row.invoice_id);
- }
- return matches;
+ const identity=documentIdentity(ex,lastInvoice);
+ if(!identity)return [];
+ // Fetch both tables so approved, draft, and manually entered documents are checked.
+ const id=encodeURIComponent(businessId);
+ const [rows,records]=await Promise.all([
+  api('/rest/v1/invoice_analysis?select=invoice_id,extracted,document_type&business_id=eq.'+id+'&limit=10000'),
+  api('/rest/v1/invoices?select=id,business_id,supplier_name,invoice_number&business_id=eq.'+id+'&limit=10000')
+ ]);
+ const byId=new Map(rows.map(a=>[a.invoice_id,a]));
+ return records.filter(inv=>inv.id!==invoiceId&&identitiesMatch(identity,identityForInvoice(inv,byId))).map(inv=>inv.id);
 }
 async function checkManualDuplicate(supplier,number){
  const normalizedSupplier=normalizeSupplier(supplier),normalizedNumber=normalizeDocumentNumber(number);
- if(!normalizedSupplier||!normalizedNumber)throw Error('יש להזין ספק ומספר חשבונית');
- const existing=await api('/rest/v1/invoices?select=id,supplier_name,invoice_number&business_id=eq.'+encodeURIComponent(businessId)+'&limit=10000');
- return existing.filter(i=>normalizeSupplier(i.supplier_name)===normalizedSupplier&&normalizeDocumentNumber(i.invoice_number)===normalizedNumber);
+ if(!normalizedSupplier||isPlaceholderNumber(number))throw Error('יש להזין ספק ומספר חשבונית תקין');
+ const id=encodeURIComponent(businessId);
+ const [records,rows]=await Promise.all([
+  api('/rest/v1/invoices?select=id,business_id,supplier_name,invoice_number&business_id=eq.'+id+'&limit=10000'),
+  api('/rest/v1/invoice_analysis?select=invoice_id,extracted,document_type&business_id=eq.'+id+'&limit=10000')
+ ]);
+ const byId=new Map(rows.map(a=>[a.invoice_id,a]));
+ const target={suppliers:[normalizedSupplier],numbers:[normalizedNumber],type:'financial'};
+ return records.filter(inv=>identitiesMatch(target,identityForInvoice(inv,byId)));
 }
 async function updateDuplicateReview(){
  const sequence=++duplicateCheckSequence;
@@ -220,22 +229,14 @@ async function updateDuplicateReview(){
  const approve=$('approveAnalysis');if(approve)approve.disabled=true;
  try{
   const identity=analysisIdentity(lastAnalysis);
-  if(!identity){
-   if(sequence!==duplicateCheckSequence)return;
-   warning.className='result-warning';warning.textContent='יש להשלים שם ספק, מספר מסמך וסוג מסמך לפני אישור.';
-   return;
-  }
+  if(!identity){if(sequence!==duplicateCheckSequence)return;warning.className='result-warning';warning.textContent='יש להשלים שם ספק, מספר מסמך וסוג מסמך לפני אישור.';return}
   const duplicates=await findDocumentDuplicates(lastAnalysis,lastInvoice.id);
   if(sequence!==duplicateCheckSequence)return;
   duplicateForReview=duplicates.length?duplicates:null;
-  warning.textContent=duplicates.length?'⚠️ כפילות: מסמך מאותו ספק, עם אותו מספר ואותו סוג, כבר נקלט ('+duplicates.length+' עותקים). ניתן לשמור תיקונים, אך לא לאשר שוב.':'✓ לא נמצאה כפילות לפי ספק, מספר וסוג מסמך.';
+  warning.textContent=duplicates.length?'⚠️ כפילות: מסמך מאותו ספק עם אותו מספר כבר קיים ('+duplicates.length+' עותקים). אפשר לשמור תיקונים אך לא לאשר שוב.':'✓ לא נמצאה כפילות לפי ספק ומספר מסמך.';
   warning.className=duplicates.length?'result-warning':'result-note';
   if(approve)approve.disabled=!['invoice','tax_invoice','receipt','tax_invoice_receipt'].includes(lastAnalysis.document_type)||duplicates.length>0;
- }catch(e){
-  if(sequence!==duplicateCheckSequence)return;
-  duplicateForReview='unverified';warning.className='result-warning';
-  warning.textContent='בדיקת הכפילויות נכשלה: '+e.message+'. אישור חסום עד לבדיקה.';
- }
+ }catch(e){if(sequence!==duplicateCheckSequence)return;duplicateForReview='unverified';warning.className='result-warning';warning.textContent='בדיקת הכפילויות נכשלה: '+e.message+'. אישור חסום עד לבדיקה.'}
 }
 
 function normalizeSupplier(v){return String(v||'').toLowerCase().replace(/["׳״'`.,()\-]/g,' ').replace(/\b(בעמ|בע מ|ltd|limited)\b/g,' ').replace(/\s+/g,' ').trim()}
