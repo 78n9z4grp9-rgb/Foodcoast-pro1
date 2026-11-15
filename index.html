@@ -363,19 +363,42 @@ async function openInvoiceFile(path,button){
 function resultCell(label,value){
  const el=document.createElement('div');el.className='result-cell';const small=document.createElement('small');small.textContent=label;const strong=document.createElement('b');strong.textContent=value===null||value===undefined||value===''?'לא זוהה':String(value);el.append(small,strong);return el;
 }
+// Normalize OCR dates without using Date.parse (which misreads short dates).
+function normalizeInvoiceDate(value){
+ const raw=String(value??'').trim();if(!raw)return {value:'',warning:'לא זוהה תאריך. יש להזין אותו ידנית.'};
+ const digits=raw.replace(/[.\/]/g,'-').replace(/\s+/g,'');
+ let y,m,d,match;
+ if((match=digits.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/))){[,y,m,d]=match}
+ else if((match=digits.match(/^(\d{1,2})-(\d{1,2})-(\d{2}|\d{4})$/))){
+  [,d,m,y]=match;
+  if(y.length===2)y=String(2000+Number(y));
+ }else return {value:'',warning:'פורמט תאריך לא מזוהה: '+raw+'. יש לבחור תאריך ידנית.'};
+ y=Number(y);m=Number(m);d=Number(d);
+ const dt=new Date(Date.UTC(y,m-1,d));
+ if(dt.getUTCFullYear()!==y||dt.getUTCMonth()!==m-1||dt.getUTCDate()!==d)return {value:'',warning:'תאריך לא תקין: '+raw+'. יש לתקן ידנית.'};
+ const iso=String(y).padStart(4,'0')+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+ // OCR sometimes transforms 10/11/26 into 2010-11-26; an old year needs explicit review.
+ if(y<2020||y>new Date().getFullYear()+1)return {value:iso,warning:'שנת החשבונית ('+y+') חריגה. יש לבדוק מול המסמך ולתקן לפני אישור.'};
+ return {value:iso,warning:''};
+}
 function showAnalysis(result,invoice){
  const data=result?.extracted||result?.data?.extracted||result?.data||result||{};
  lastAnalysis=structuredClone(data);lastInvoice=invoice;
+ const parsedDate=normalizeInvoiceDate(lastAnalysis.document_date);
+ lastAnalysis.document_date=parsedDate.value;
+ lastAnalysis._dateReviewRequired=Boolean(parsedDate.warning);
+ lastAnalysis._dateReviewWarning=parsedDate.warning;
  const section=document.createElement('section');section.className='panel';section.id='analysisResult';
  const title=document.createElement('h3');title.className='result-title';title.textContent='תוצאות זיהוי — '+String(invoice.invoice_number||'מסמך חדש');section.append(title);
  const grid=document.createElement('div');grid.className='result-grid';
  const typeNames={invoice:'חשבונית',delivery_note:'תעודת משלוח',receipt:'קבלה',credit_note:'זיכוי',other:'מסמך אחר'};
  const amount=v=>v===null||v===undefined||v===''?'לא זוהה':money(v);
- for(const [k,v] of [['סוג מסמך',typeNames[data.document_type]||data.document_type],['ספק',data.supplier_name],['מספר מסמך',data.document_number],['תאריך',data.document_date],['סכום לפני מע״מ',amount(data.subtotal)],['מע״מ',amount(data.vat_amount)],['סה״כ במסמך',amount(data.total_amount)]])grid.append(resultCell(k,v));
+ for(const [k,v] of [['סוג מסמך',typeNames[data.document_type]||data.document_type],['ספק',data.supplier_name],['מספר מסמך',data.document_number],['תאריך',lastAnalysis.document_date||'דורש תיקון'],['סכום לפני מע״מ',amount(data.subtotal)],['מע״מ',amount(data.vat_amount)],['סה״כ במסמך',amount(data.total_amount)]])grid.append(resultCell(k,v));
  section.append(grid);
  const review=document.createElement('div');review.className='grid';
  const reviewFields=[['supplier_name','שם ספק','text'],['document_number','מספר מסמך','text'],['document_date','תאריך','date'],['total_amount','סכום כולל','number']];
- for(const [key,label,type] of reviewFields){const box=document.createElement('div');const lab=document.createElement('label');lab.textContent=label;const inp=document.createElement('input');inp.type=type;inp.className='review-input';if(type==='number'){inp.step='0.01';inp.min='0'}inp.value=data[key]??'';inp.addEventListener('input',()=>{lastAnalysis[key]=inp.value===''?null:(type==='number'?Number(inp.value):inp.value);if(['supplier_name','document_number'].includes(key))void updateDuplicateReview()});box.append(lab,inp);review.append(box)}section.append(review);
+ for(const [key,label,type] of reviewFields){const box=document.createElement('div');const lab=document.createElement('label');lab.textContent=label;const inp=document.createElement('input');inp.type=type;inp.className='review-input';if(type==='number'){inp.step='0.01';inp.min='0'}inp.value=key==='document_date'?(lastAnalysis.document_date||''):(data[key]??'');inp.addEventListener('input',()=>{lastAnalysis[key]=inp.value===''?null:(type==='number'?Number(inp.value):inp.value);if(key==='document_date'){const checked=normalizeInvoiceDate(inp.value);lastAnalysis._dateReviewRequired=Boolean(checked.warning);lastAnalysis._dateReviewWarning=checked.warning;const warning=$('dateReviewWarning');if(warning)warning.textContent=checked.warning||'✓ התאריך נבדק ידנית';}if(['supplier_name','document_number'].includes(key))void updateDuplicateReview()});box.append(lab,inp);review.append(box)}section.append(review);
+ const dateWarning=document.createElement('p');dateWarning.id='dateReviewWarning';dateWarning.className='review-note';dateWarning.textContent=lastAnalysis._dateReviewWarning||'תאריך החשבונית זוהה בפורמט תקין. יש לוודא מול המקור.';section.append(dateWarning);
  const items=Array.isArray(data.items)?data.items:[];
  const heading=document.createElement('h3');heading.textContent='מוצרים שזוהו ('+items.length+')';section.append(heading);
  if(items.length){const wrap=document.createElement('div');wrap.className='result-wrap';const table=document.createElement('table');const head=document.createElement('thead');const tr=document.createElement('tr');for(const label of ['מוצר','מק״ט','כמות','מחיר יחידה','סה״כ שורה']){const th=document.createElement('th');th.textContent=label;tr.append(th)}head.append(tr);table.append(head);const body=document.createElement('tbody');let calculated=0,complete=0;
@@ -398,13 +421,20 @@ function showAnalysis(result,invoice){
 }
 async function persistAnalysis(approve,button){
  if(!lastInvoice||!lastAnalysis)return;
+ const checkedDate=normalizeInvoiceDate(lastAnalysis.document_date);
+ if(approve&&(checkedDate.warning||lastAnalysis._dateReviewRequired)){
+  const warning=checkedDate.warning||'יש לאשר את תאריך החשבונית לאחר בדיקה מול המקור.';
+  const node=$('reviewState');if(node)node.textContent=warning;
+  return;
+ }
+ if(!checkedDate.warning)lastAnalysis.document_date=checkedDate.value;
  if(approve){
   if(!['invoice','tax_invoice','receipt','tax_invoice_receipt'].includes(lastAnalysis.document_type)){msg('appMsg','לא ניתן לאשר תעודת משלוח כסכום חשבונית.');return;}
   try{const matches=await findDocumentDuplicates(lastAnalysis,lastInvoice.id);if(matches.length){msg('appMsg','המסמך כבר קיים במערכת. אישור נוסף נחסם כדי למנוע כפילות.');await updateDuplicateReview();return;}}
   catch(e){msg('appMsg','לא ניתן לוודא שאין כפילות ולכן האישור נחסם: '+e.message);return;}
  }
  button.disabled=true;const old=button.textContent;button.textContent='שומר...';
- try{const result=await api('/rest/v1/rpc/save_invoice_analysis',{method:'POST',body:{p_invoice_id:lastInvoice.id,p_extracted:lastAnalysis,p_approve:approve}});
+ try{const result=await api('/rest/v1/rpc/save_invoice_analysis',{method:'POST',body:{p_invoice_id:lastInvoice.id,p_extracted:Object.fromEntries(Object.entries(lastAnalysis).filter(([k])=>!k.startsWith('_dateReview'))),p_approve:approve}});
  $('reviewState').textContent=(approve?'החשבונית אושרה והסכומים עודכנו. ':'הנתונים נשמרו כטיוטה. ')+'נשמרו '+result.items_saved+' שורות.';
  await refresh();
  }catch(e){$('reviewState').textContent='שמירה נכשלה: '+e.message+' — יש להריץ תחילה את קובץ ה-SQL ב-Supabase.'}
@@ -415,7 +445,7 @@ async function runAnalysis(invoice){
  if(!invoice.file_path||!invoice.file_path.startsWith(businessId+'/'))throw Error('אין קובץ תקין לניתוח');
  const result=await api('/functions/v1/analyze-invoice',{method:'POST',body:{invoice_id:invoice.id,business_id:businessId,file_path:invoice.file_path}});
  showAnalysis(result,invoice);
- try{await api('/rest/v1/rpc/save_invoice_analysis',{method:'POST',body:{p_invoice_id:invoice.id,p_extracted:lastAnalysis,p_approve:false}});$('reviewState').textContent='✓ זוהו ונשמרו '+(lastAnalysis.items?.length||0)+' שורות כטיוטה. ניתן לתקן ולאשר.'}
+ try{await api('/rest/v1/rpc/save_invoice_analysis',{method:'POST',body:{p_invoice_id:invoice.id,p_extracted:Object.fromEntries(Object.entries(lastAnalysis).filter(([k])=>!k.startsWith('_dateReview'))),p_approve:false}});$('reviewState').textContent='✓ זוהו ונשמרו '+(lastAnalysis.items?.length||0)+' שורות כטיוטה. ניתן לתקן ולאשר.'}
  catch(e){$('reviewState').textContent='הזיהוי הצליח, אבל שמירת הפריטים נכשלה: '+e.message+' (בדוק שהרצת את קובץ ה-SQL)'}
  return result;
 }
